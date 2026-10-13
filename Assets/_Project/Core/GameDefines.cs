@@ -16,11 +16,17 @@ namespace LastLight.Core
     public enum ItemType { Fuel, Wood, Food, RepairParts }
 
     /// <summary>Where the player spends time — tracked by AdaptiveStormTracker.</summary>
-    public enum ShelterZone { None, LighthouseInterior, GeneratorRoom, LensRoom, Beach, Cliffs, Forest }
+    public enum ShelterZone { None, LighthouseInterior, GeneratorRoom, LensRoom, Beach, Cliffs, Forest, Cannery, Cave }
 
-    /// <summary>Tunable constants that avoid magic numbers scattered in gameplay code.</summary>
+    /// <summary>Surface type under Elias' feet — drives footstep SFX + particle.</summary>
+    public enum SurfaceType { Stone, Wood, Metal, Sand, Grass, Water }
+
     public static class GameDefines
     {
+        // --- Island ---
+        public const float IslandSizeMeters = 1000f;
+        public const int   IslandZoneCount  = 5;
+
         // --- Player ---
         public const float PlayerWalkSpeed       = 1.6f;
         public const float PlayerJogSpeed        = 3.2f;
@@ -34,12 +40,12 @@ namespace LastLight.Core
         public const float PlayerGroundCheckDist = 0.15f;
 
         // --- Inventory / Movement weight ---
-        public const float InventoryMaxWeight       = 20f;  // kg-ish abstract
-        public const float InventoryWeightSlowFactor = 0.025f; // per kg speed penalty (max ~50% at full)
-        public const float ItemWeightFuel          = 3f;
-        public const float ItemWeightWood          = 4f;
-        public const float ItemWeightFood          = 1f;
-        public const float ItemWeightRepairParts   = 2f;
+        public const float InventoryMaxWeight        = 20f;
+        public const float InventoryWeightSlowFactor = 0.025f;
+        public const float ItemWeightFuel            = 3f;
+        public const float ItemWeightWood            = 4f;
+        public const float ItemWeightFood            = 1f;
+        public const float ItemWeightRepairParts     = 2f;
 
         // --- Survival (per-second rates) ---
         public const float HungerDrainPerSec     = 0.02f;
@@ -53,21 +59,39 @@ namespace LastLight.Core
         public const float LighthouseFuelDrainPerSec  = 0.08f;
         public const float LighthouseMaxFuel          = 100f;
         public const float LighthouseRepairPerUse     = 25f;
-        public const float LightFailureGraceSeconds   = 60f; // ship wreck if dark this long
+        public const float LightFailureGraceSeconds   = 60f;
         public const float NightWaterLeakChancePerSec = 0.008f;
-        public const float LensFailurePerStorm01      = 0.12f; // chance lens cracks each storm night
+        public const float LensFailurePerStorm01      = 0.12f;
 
-        // --- Gathering / respawn (mobile-cheap: timer + single object toggle, no pooling overhead) ---
+        // --- Gathering / respawn ---
         public const float GatherRespawnShort = 90f;  // wood/food
         public const float GatherRespawnLong  = 240f; // fuel/repair parts
-        public const float GatherInteractHoldSeconds = 0.6f; // hold to gather
+        public const float GatherInteractHoldSeconds = 0.6f;
 
         // --- Adaptive storm ---
-        public const float AdaptiveDecayPerDay = 0.15f; // forget 15% of old bias each dawn
+        public const float AdaptiveDecayPerDay = 0.15f;
         public const float AdaptiveMinWeight   = 0.05f;
 
         // --- Save ---
         public const string SaveFileName = "lastlight_save.json";
         public const int    MercySupplyAfterFailedNights = 3;
+
+        // --- Audio ---
+        public const int   AudioPoolSources   = 12; // pooled AudioSources for SFX
+        public const float FootstepIntervalWalk = 0.48f;
+        public const float FootstepIntervalRun  = 0.30f;
+        public const float PresenceMinInterval  = 28f;
+        public const float PresenceMaxInterval  = 55f;
+
+        // --- Performance budgets (documented targets) ---
+        public const int MaxDrawCallsLow    = 50;
+        public const int MaxDrawCallsMed    = 80;
+        public const int MaxDrawCallsHigh   = 120;
+        public const int MaxTrisVisibleLow  = 80000;
+        public const int MaxTrisVisibleMed  = 150000;
+        public const int MaxTrisVisibleHigh = 250000;
+        public const int TargetFPSLow    = 30;
+        public const int TargetFPSMed    = 60;
+        public const int TargetFPSHigh   = 60;
     }
 }

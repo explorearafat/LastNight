@@ -22,6 +22,21 @@ namespace LastLight.Survival
         int _shipWrecks;
         readonly List<int> _wreckDays = new();
 
+        // Note collection — persistent across saves (also synced via static for early Awake checks)
+        static readonly HashSet<int> _collectedNotes = new();
+        public static bool HasCollectedNote(int n) => _collectedNotes.Contains(n);
+        public static void CollectNote(int n)
+        {
+            if (_collectedNotes.Add(n))
+            {
+                // Persist immediately via instance AutoSave if available
+                var inst = FindFirstObjectByType<SaveManager>();
+                inst?.AutoSave();
+            }
+        }
+
+
+
         void Awake()
         {
             // Auto-load on boot so lighthouse structural damage is restored.
@@ -85,7 +100,7 @@ namespace LastLight.Survival
 
             var data = new SaveFile
             {
-                version      = 2,
+                version      = 3,
                 savedAtUtc   = System.DateTime.UtcNow.ToString("o"),
                 normalizedTime01 = dnc != null ? dnc.NormalizedTime01 : 0.35f,
                 weatherState   = weather != null ? weather.CurrentState : WeatherState.Clear,
@@ -103,6 +118,7 @@ namespace LastLight.Survival
                 qualityPreset  = qm != null ? (int)qm.Current : 1,
                 shipWrecks     = _shipWrecks,
                 wreckDaysCsv   = string.Join(",", _wreckDays),
+                collectedNotesCsv = string.Join(",", _collectedNotes),
             };
 
             // Inventory
@@ -167,6 +183,9 @@ namespace LastLight.Survival
             _wreckDays.Clear();
             if (!string.IsNullOrEmpty(data.wreckDaysCsv))
                 foreach (var s in data.wreckDaysCsv.Split(',')) if (int.TryParse(s, out int d)) _wreckDays.Add(d);
+            _collectedNotes.Clear();
+            if (!string.IsNullOrEmpty(data.collectedNotesCsv))
+                foreach (var s in data.collectedNotesCsv.Split(',')) if (int.TryParse(s, out int n)) _collectedNotes.Add(n);
         }
 
         [System.Serializable]
@@ -186,6 +205,7 @@ namespace LastLight.Survival
             public bool hasWaterLeak, hasLensCrack;
             public int shipWrecks;
             public string wreckDaysCsv;
+            public string collectedNotesCsv;
         }
 
         [System.Serializable]

@@ -11,18 +11,46 @@ namespace LastLight.Core
     {
         [Header("Prefabs (optional — falls back to primitives)")]
         [SerializeField] GameObject playerPrefab;
-        [SerializeField] GameObject charactersRootPrefab; // optional: the imported humanoid
+        [SerializeField] GameObject charactersRootPrefab;
+
+        [Header("World Config (optional — assign a WorldConfig asset)")]
+        [SerializeField] World.WorldConfig worldConfig;
 
         void Awake()
         {
             EnsureManager<LastLight.World.DayNightCycle>("DayNight");
             EnsureManager<LastLight.World.WeatherManager>("Weather");
+            EnsureManager<LastLight.World.LightingManager>("Lighting");
+            EnsureManager<LastLight.World.WeatherVFXManager>("WeatherVFX");
+            EnsureManager<LastLight.World.OceanController>("Ocean");
+            EnsureManager<LastLight.Audio.AudioManager>("AudioManager");
             EnsureManager<QualitySettingsManager>("Quality");
+            EnsureManager<LastLight.World.WorldQualitySettings>("WorldQuality");
             EnsureManager<LastLight.Survival.SaveManager>("SaveManager");
             EnsureManager<LastLight.World.DayLoopController>("DayLoop");
             EnsureManager<LastLight.World.AdaptiveStormDirector>("AdaptiveStorm");
             EnsureManager<LastLight.UI.DebugOverlay>("DebugOverlay");
             EnsureManager<LastLight.UI.DebugConsole>("DebugConsole");
+            EnsureManager<LastLight.UI.NotePresenter>("NotePresenter");
+
+            // Wire WorldConfig into quality/world if assigned
+            if (worldConfig != null)
+            {
+                var wq = FindFirstObjectByType<LastLight.World.WorldQualitySettings>();
+                if (wq != null)
+                {
+                    var fi = typeof(LastLight.World.WorldQualitySettings).GetField("config",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    fi?.SetValue(wq, worldConfig);
+                }
+                var layout = FindFirstObjectByType<LastLight.World.IslandLayout>();
+                if (layout != null)
+                {
+                    var fi2 = typeof(LastLight.World.IslandLayout).GetField("config",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    fi2?.SetValue(layout, worldConfig);
+                }
+            }
 
             EnsureWorld();
             EnsurePlayer();
@@ -37,9 +65,29 @@ namespace LastLight.Core
 
         void EnsureWorld()
         {
-            if (FindFirstObjectByType<LastLight.World.WorldBuilder>() != null) return;
-            var go = new GameObject("WorldBuilder");
-            go.AddComponent<LastLight.World.WorldBuilder>();
+            if (FindFirstObjectByType<LastLight.World.IslandLayout>() == null
+             && FindFirstObjectByType<LastLight.World.WorldBuilder>() == null)
+            {
+                var go = new GameObject("IslandLayout");
+                go.AddComponent<LastLight.World.IslandLayout>();
+            }
+            // Legacy WorldBuilder still covers the lighthouse tower detail + gatherables + interiors
+            if (FindFirstObjectByType<LastLight.World.WorldBuilder>() == null)
+            {
+                var go = new GameObject("WorldBuilder");
+                go.AddComponent<LastLight.World.WorldBuilder>();
+            }
+            if (FindFirstObjectByType<LastLight.World.LighthouseInterior>() == null)
+            {
+                var go = new GameObject("LighthouseInterior");
+                go.AddComponent<LastLight.World.LighthouseInterior>();
+            }
+            if (FindFirstObjectByType<LastLight.World.DamageableStructure>() == null)
+            {
+                // WorldBuilder creates one on the tower; this is a fallback only
+                var go = new GameObject("DamageableStructure");
+                go.AddComponent<LastLight.World.DamageableStructure>();
+            }
         }
 
         void EnsurePlayer()
@@ -96,6 +144,8 @@ namespace LastLight.Core
                 player.AddComponent<LastLight.Player.PlayerVisuals>();
             if (player.GetComponent<LastLight.Player.CharacterSetup>() == null)
                 player.AddComponent<LastLight.Player.CharacterSetup>();
+            if (player.GetComponent<LastLight.Audio.FootstepController>() == null)
+                player.AddComponent<LastLight.Audio.FootstepController>();
             if (player.GetComponent<LastLight.Survival.PlayerStats>() == null)
                 player.AddComponent<LastLight.Survival.PlayerStats>();
             if (player.GetComponent<LastLight.Survival.Inventory>() == null)
