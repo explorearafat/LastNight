@@ -1,7 +1,7 @@
 // Last Light — Core/InteractionSystem.cs
-// Minimal interactable contract. The player raycasts / sphere-checks for IInteractable
-// and TouchInput shows the button. Keep it interface-only so world objects don't
-// need to inherit from a base class.
+// Minimal interactable contract + helpers.
+// The player sphere-scans for IInteractable; TouchInput shows a single context button.
+// Keep it interface-only so world objects don't need a common base beyond this file.
 
 using UnityEngine;
 
@@ -10,16 +10,9 @@ namespace LastLight.Core
     /// <summary>Anything the player can interact with from nearby.</summary>
     public interface IInteractable
     {
-        /// <summary>Short label shown on the interact button, e.g. "Refuel generator".</summary>
-        string Prompt { get; }
-
-        /// <summary>True if interaction is currently allowed (in range, requirement met, …).</summary>
-        bool CanInteract { get; }
-
-        /// <summary>Called when the player confirms interaction.</summary>
-        void Interact(GameObject instigator);
-
-        /// <summary>World position used for distance checks (defaults to transform.position).</summary>
+        string  Prompt          { get; }
+        bool    CanInteract     { get; }
+        void    Interact(GameObject instigator);
         Vector3 InteractionPoint { get; }
     }
 
@@ -29,14 +22,37 @@ namespace LastLight.Core
         [SerializeField] string prompt = "Interact";
         [SerializeField] float  maxDistance = 2f;
 
-        public string Prompt => prompt;
+        public string  Prompt          => prompt;
         public Vector3 InteractionPoint => transform.position;
-        public float MaxDistance => maxDistance;
+        public float   MaxDistance     => maxDistance;
 
         public virtual bool CanInteract => Vector3.Distance(
             FindFirstObjectByType<LastLight.Player.PlayerController>()?.transform.position ?? transform.position,
             InteractionPoint) <= maxDistance;
 
         public abstract void Interact(GameObject instigator);
+
+        protected void SetPrompt(string p) => prompt = p;
+    }
+
+    /// <summary>Finds the best IInteractable near a point (single OverlapSphere).</summary>
+    public static class InteractionScanner
+    {
+        static readonly Collider[] _hits = new Collider[16];
+
+        public static IInteractable FindBest(Vector3 origin, float radius, LayerMask mask)
+        {
+            int count = Physics.OverlapSphereNonAlloc(origin, radius, _hits, mask, QueryTriggerInteraction.Collide);
+            IInteractable best = null;
+            float bestDist = float.MaxValue;
+            for (int i = 0; i < count; i++)
+            {
+                var ia = _hits[i].GetComponentInParent<IInteractable>();
+                if (ia == null || !ia.CanInteract) continue;
+                float d = Vector3.Distance(origin, ia.InteractionPoint);
+                if (d < bestDist) { bestDist = d; best = ia; }
+            }
+            return best;
+        }
     }
 }

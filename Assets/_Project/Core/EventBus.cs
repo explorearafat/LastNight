@@ -26,7 +26,6 @@ namespace LastLight.Core
         public static void Publish<T>(T evt)
         {
             if (!_map.TryGetValue(typeof(T), out var list)) return;
-            // Snapshot to allow handlers to subscribe/unsubscribe during dispatch.
             var snapshot = list.ToArray();
             foreach (var d in snapshot) ((Action<T>)d).Invoke(evt);
         }
@@ -36,17 +35,14 @@ namespace LastLight.Core
 
     // --- Event payloads ---
 
-    /// <summary>Fired when fuel, damage or light state changes.</summary>
     public readonly struct LighthouseChangedEvent
     {
-        public readonly float Fuel01;
-        public readonly float StructuralDamage01; // 0 = pristine, 1 = ruined
+        public readonly float Fuel01, StructuralDamage01;
         public readonly bool  LightOn;
         public LighthouseChangedEvent(float fuel01, float damage01, bool lightOn)
         { Fuel01 = fuel01; StructuralDamage01 = damage01; LightOn = lightOn; }
     }
 
-    /// <summary>Fired when weather transitions.</summary>
     public readonly struct WeatherChangedEvent
     {
         public readonly WeatherState From, To;
@@ -55,19 +51,59 @@ namespace LastLight.Core
         { From = from; To = to; StormIntensity01 = intensity; }
     }
 
-    /// <summary>Fired when day phase rolls over.</summary>
     public readonly struct DayPhaseChangedEvent
     {
         public readonly DayPhase NewPhase;
-        public readonly float    NormalizedTime01; // 0 = midnight, 0.5 = noon
+        public readonly float    NormalizedTime01;
         public DayPhaseChangedEvent(DayPhase phase, float t) { NewPhase = phase; NormalizedTime01 = t; }
     }
 
-    /// <summary>Fired from PlayerStats when a vital crosses a threshold the presentation layer cares about.</summary>
     public readonly struct PlayerVitalEvent
     {
-        public readonly string Vital; // "Health" | "Stamina" | "Hunger" | "Cold"
+        public readonly string Vital;
         public readonly float  Value01;
         public PlayerVitalEvent(string vital, float v) { Vital = vital; Value01 = v; }
+    }
+
+    public readonly struct ItemPickedEvent
+    {
+        public readonly ItemType Type;
+        public readonly int Count;
+        public ItemPickedEvent(ItemType type, int count) { Type = type; Count = count; }
+    }
+
+    public readonly struct InventoryChangedEvent
+    {
+        public readonly float Weight01;
+        public InventoryChangedEvent(float w01) { Weight01 = w01; }
+    }
+
+    public readonly struct LoopPhaseChangedEvent
+    {
+        public readonly DayPhase From, To;
+        public LoopPhaseChangedEvent(DayPhase from, DayPhase to) { From = from; To = to; }
+    }
+
+    public readonly struct ShipWreckEvent
+    {
+        public readonly int DayNumber;
+        public ShipWreckEvent(int day) { DayNumber = day; }
+    }
+
+    public readonly struct DamageReportEvent
+    {
+        public readonly float NewStructuralDamage01;
+        public readonly bool  HadLightFailure;
+        public readonly bool  HadWaterLeak;
+        public readonly bool  HadLensFailure;
+        public DamageReportEvent(float dmg, bool light, bool leak, bool lens)
+        { NewStructuralDamage01 = dmg; HadLightFailure = light; HadWaterLeak = leak; HadLensFailure = lens; }
+    }
+
+    public readonly struct StormTargetChosenEvent
+    {
+        public readonly string TargetName;
+        public readonly float  Weight;
+        public StormTargetChosenEvent(string name, float weight) { TargetName = name; Weight = weight; }
     }
 }
