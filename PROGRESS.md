@@ -1,10 +1,9 @@
 # Last Light — PROGRESS.md
 
-## Status: Day 5 — Archipelago, Brick Ruins, Boat & Shark Waters — Checkpoint 1 (Done)
+## Status: Day 5 — Archipelago, Brick Ruins, Boat & Shark Waters — Checkpoint 1+2 (Done)
 
-> Game: realistic stylized lighthouse-survival, Android, Unity 6 URP, no combat.
-> Lighthouse islet ↔ shark channel (260 m) ↔ main island (ruins). Elias ferries fuel by boat.
-> Pillar: it must feel like you are physically living this.
+> **Archipelago:** lighthouse islet `(-520,0)` r75 + `260 m` shark channel + main island `750 m` (beach/forest/castle/bunker/cannery/mountain/ruins).
+> Boat ferry (~75 s calm) + shark channel — CP2 adds shark AI, route-learned AdaptiveStorm, ferry, lore re-map, hints, mercy. All tasks 1-14 done.
 
 ---
 
@@ -96,7 +95,7 @@
 - NVidia/Mesa EEVEE screenshots are preview quality — they approximate the in-game URP Lit look but are not 1:1. In-game lighting comes from `LightingManager` (baked GI + beacon + torch), not the Blender sun rig.
 - `Assets/Environment/` was empty before Day 4 — the new `Generated/` FBX files need to be committed (they are ~1 MB total, safe for Git).
 
-### Day 5 — Archipelago, Brick Ruins, Boat & Shark Waters — Checkpoint 1 (tasks 1-8)
+### Day 5 — Archipelago, Brick Ruins, Boat & Shark Waters — Checkpoint 1 (tasks 1-8) — delivered f0c2848
 
 | # | Task | What landed |
 |---|------|-------------|
@@ -107,41 +106,51 @@
 | 5 | **World scatter + ruins** | `WorldScatter.cs` (90 pines / 40 scrub / 24 rocks / 120 grass clumps, avoiding islet + channel + hero interiors), `CastleAssembler.cs` (14 kit walls + 4 pillars + 2 rubble — ruined rectangle with arch gate + window/door), `BunkerAssembler.cs` (9 kit walls + flood plane at y=0.12). Both `PaintVertexMoss` + `isStatic` batched. Wired in `SceneBootstrap.EnsureWorld()`. |
 | 6 | **Water** | `World/OceanController.cs` — expanded plane `1400×1400` at `y=-0.9`; **channel rect `(-500,-60)→(-180,60)` tints `channelColor` (0.02,0.07,0.16)**, storm darkens + `1.6×` wave amp in channel; vertex-color + MPB `_BaseColor` path; `IsInsideChannel(xz)` exposed for boat/shark. Shore foam via `ShoreDistance01`. |
 | 7 | **Boat + docks** | `Tools/Blender/build_boat.py` → `LL_Boat.fbx` **540 tris** (hull with bow taper, floor, 2 seats, transom, motor bracket+shaft, 4 torus oar locks, oar+cylinder+blade). `Systems/BoatController.cs` — fake 3-4 point buoyancy (bob `0.18 m @0.85 Hz`, storm-scaled), joystick/WASD steering (`thrust 7`, `maxSpeed 6.5`), drag models, ~75 s crossing in calm; `BoatDockManager.cs` — docks `Main(-210,-6)` + `Islet(-445,-6)`, blockout if no FBX; board with `E/Space` trigger, seats `CharacterController` disabled while aboard, wake particles, storm/shark damage → `BoatDamagedEvent`/`BoatCrossingEvent` + `PlayerPrefs` route counts for AdaptiveStorm, permanent sink (`condition→0`). |
-| 8 | **Shark proxy** | `Tools/Blender/build_shark.py` → `LL_Shark.fbx` **24 tris** (fin prism + torpedo body). Cheapest possible before AI (tasks 9-11 come after the checkpoint). |
+| 8 | **Shark proxy** | `Tools/Blender/build_shark.py` → `LL_Shark.fbx` **24 tris** (fin prism + torpedo body). Cheapest possible before AI (now promoted — see CP2 below). |
 
-**Totals this checkpoint:** 4 new FBX (**~1902 tris**: 476+862+540+24), 27 FBX total on disk; **~8176 tris** lighthouse zone (~6274 Day 4) + brick/boat/shark set when instantiated, still `~3.3%` of High.
+**Totals Checkpoint 1:** 4 new FBX (**~1902 tris**: 476+862+540+24), 27 FBX total on disk; **~8176 tris** lighthouse zone (~6274 Day 4) + brick/boat/shark set when instantiated, still `~3.3%` of High.
 
-## Decisions (Day 5 — Checkpoint 1)
+### Day 5 — Checkpoint 2 (tasks 9-14) — this commit
+
+| # | Task (brief) | What landed |
+|---|--------------|-------------|
+| 9 | **Shark system** | `Systems/SharkController.cs` — **mobile-cheap, `SharkProfile` SO-driven (3 sharks default)**: Patrol→Circle→Stalk→Attack→Repelled in-channel, `spawnMargin 8 m`, `cruise 2.4/stalk 4.2/attack 6.8 m/s, turn 75°/s`, `detectBoat 38 m / detectSwim 18 m / attack 3.0 m`. Bob + fin wobble (`0.11 m/0.55 Hz + 0.06`), camera `shakeOnApproach 0.18→0.9`. Fins always above water; `Repel(pos)` (flare) 5 s, `SplashAt` attracts, `SharkHitBoatEvent`/`SharkHitSwimmerEvent` (via `EventBus`), swimmer drain `swimDamagePerSec 0.55→ health`, boat hit `boatDamagePerHit 0.12`. |
+| 10 | **AdaptiveStorm route** | `World/AdaptiveStormDirector.cs` — subscribes to `BoatCrossingEvent` (`OnEnableRouteHook`/`OnDisableRouteHook`); `RecordBoatCrossing(side)` injects `Channel:Main/Islet` weight (`|bias|×0.9`, `bias=(main-islet)/total`), `RecomputeWeights` now emits it, `DecayBias` decays it. Shark channel aggro consumes the same `PlayerPrefs LL_Cross_Main/Islet` bias (night×1.35 storm×1.55 route×1.35). |
+| 11 | **Safety / mercy** | `World/DayLoopController.SpawnMercySupply()` now at **islet dock** (`WorldConfig.isletDock`) + **repairs the boat** (`+0.35 condition`, re-enable if sunk-disabled) after `GameDefines.MercySupplyAfterFailedNights=3`. Shark telegraph already fin-wobble + circling tell + camera nudge. |
+| 12 | **Boat ferry gameplay** | `Systems/BoatInventory.cs` (commit) — **18 kg boat limit** `StashFromPlayer`/`UnloadToPlayer` + `BoatInventoryChangedEvent`; `World/FerryBootstrap.cs` — auto-unloads on `BoatCrossingEvent.Side=="Islet"` + dusk `Weight01` log; both auto-spawned via `SceneBootstrap.EnsureManager`. `BoatInventory` + `FerryBootstrap` + `SharkController` + `WorldHints` now in bootstrap. |
+| 13 | **8 lore slots** | `World/NotePlacement.DefaultPositions` re-mapped to **archipelago**: `(-520)` islet: keeper's room/stairs/lens + main: **castle (40,140)**, **bunker (-140,90)**, **cannery (-180,-140)**, **mountain/cave (110,280)**, **ruins (-20,-40)**. `SceneBootstrap` now also ensures `SharkController`/`BoatInventory`/`FerryBootstrap`/`WorldHints`. |
+| 14 | **Hint system** | `World/WorldHints.cs` — 4 diegetic **smoke+warm-light** hints (castle/bunker/cave/cannery) — `ParticleSystem` 24/1.2/s smoke columns + `Point` light `55 m/1.1→0.38` warm `1,0.52,0.18`. No markers. Also in bootstrap. |
+
+## Decisions (Day 5 — Checkpoint 1+2)
 
 - **Islet is an offset, not a re-export** — Day 4 `LL_Lighthouse_Tower` stays at origin in FBX; `IsletPositionPatch` moves `LighthouseArea_Root` (+ `Islet_Ground`) to `(-520,0)` at runtime so no Blender rework and no duplicate tower.
 - **Brick kit is one FBX, many parts** — 37 meshes in a single `LL_BrickKit.fbx` arranged as a kit grid. Castle/Bunker look up kit parts by child name (`LL_Brick_Wall_Straight` etc.) and `Instantiate` them. Damage variants are vertex-jitter dupes, not new meshes.
 - **Nature kit is also a kit FBX** — same pattern: pines/scrub/grass/rock/shell in one file, scattered procedurally. No per-biome FBX sprawl before profiling.
 - **Channel is a logical rect, not a mesh cut** — `OceanController.IsInsideChannel` + `channelMin/Max` drive both the dark tint and the scatter exclusion, so sharks/boat can share the same rect without adding ocean geometry.
 - **Boat is fake buoyancy on purpose** — 1D bob + drag + `maxSpeed` clamp is mobile-cheap and deterministic; a real `Rigidbody`/`BoatPhysics` buoyancy solve would burn CPU and behave badly on a phone without water colliders.
+- **Sharks are fin-proxies, not rigged** — `LL_Shark.fbx` is 2 meshes (fin + body, 24 tris). Aggression is a scalar on `SharkProfile`; the shark count stays at 3 so the channel never becomes a hard wall. Route bias (`PlayerPrefs LL_Cross_*`) is read on every `Update` so `AdaptiveStormDirector` can share the same counts without `EventBus` coupling being the only path.
+- **Ferry is an extra inventory, not a save field** — `BoatInventory` (18 kg) sits on `SharkController`'s GameObject (`"Sharks"`), so `BoatController` can call `ApplySharkDamage` without a manager hop. `FerryBootstrap` only auto-unloads; it never invents items.
 
-## Known Bugs / Limitations (Checkpoint 1)
+## Known Bugs / Limitations (Checkpoint 1+2 → Day 6)
 
-- No URP ShaderGraph files — `MossWetnessDriver` drives globals (`_LL_Wetness01` etc.) but no graph reads them yet; moss/algae is only in baked vertex colors from `PaintVertexMoss`. Wire the graphs in Day 5 tasks 2 continuation.
-- Shark is geometry-only (24 tris) — AI (steering, fin, circling, attack, flare repel, AdaptiveStorm link) lands in tasks 9-11 after the checkpoint.
+- No URP ShaderGraph files — `MossWetnessDriver` drives globals (`_LL_Wetness01` etc.) but no graph reads them yet; moss/algae is only in baked vertex colors from `PaintVertexMoss`. Wire the graphs next.
+- **Shark repel is `SharkController.Repel(pos)` only** — no flare/lantern prefab calls it yet; wire a flare `Interactable` to call `SharkController.Instance.Repel` when you add the flare.
 - Boat audio/particles are field slots waiting on clips — `creakClip`/`wakeParticles`/`splashParticles` are null until you assign audio/particles; the controllers still run silently.
 - `WorldScatter` uses `y=0` ground (no raycast) — pines/rocks sit at plane height; terrain sculpt will offset them later via raycast.
+- `boatCondition` is **not in `SaveFile` yet** — `SaveManager` version stays `3`; a sink is lost on reload (the mercy drop re-heals it after 3 fails next run). Bump to `v4` with `boatCondition01` + `sharkWrecks` next.
 
-## Next Steps (Day 5 Checkpoint 1 → Checkpoint 2 / Day 6 Plan)
+## Next Steps (Day 6 Plan)
 
-1. **Textures + atlases** — fetch Poly Haven CC0 PBR sets (wet stone, weathered wood, rusted metal, mossy stone, paper) via MCP/browser; build a 1024 atlas for small props (canister, lantern, driftwood, crates, barrel hoops) and 2048 for the tower/house; wire into URP Lit; re-export FBX with UV2 kept; verify ASTC in Frame Debugger.
-2. **LODs** — add `make_lod(ratio=0.5)` second pass to the 5 most-used meshes (tower, house, rocks, barrel, generator); export as `_LOD0/_LOD1` pairs; verify `LODGroup` auto-wire in the postprocessor and `lodBias` per quality tier.
-3. **Lightmap + occlusion bake** — with lighthouse area static, bake lightmaps (`Window → Rendering → Lighting → Generate Lighting`) + Light Probe Group around the lighthouse + Reflection Probe for the lens; bake occlusion culling; confirm realtime light count = 2 (beacon + torch) in Frame Debugger.
-4. **Physics + footstep surfaces** — add `MeshCollider` (convex off) on tower/dock/house, `BoxCollider` on fence/crates; tag by `SurfaceType` (Stone/Wood/Metal/Sand) so `FootstepController`'s raycast maps to the right SFX bank; test CharacterController slope/stair interaction on the new spiral stairs.
-5. **Day 5 continuation (tasks 9-14)** — shark AI (3-5 ScriptableObject-driven, fin visibility, circling/stalking, splash/blood attract, flare repel, night+storm scaling), AdaptiveStorm learns the player's preferred channel route, boat-inventory ferry before dusk, lore slots + hint system, safety/mercy tuning, full-island profile.
-6. **On-device profile + build** — with archipelago + baked lighting + textures + LODs, run `adb shell dumpsys gfxinfo com.company.lastlight framestats` + Unity Profiler for one full Day→Dusk→Night loop; verify SRP Batcher batches and tune texture quality per tier.
-3. **Lightmap + occlusion bake** — with archipelago static, bake lightmaps (`Window → Rendering → Lighting → Generate Lighting`) + Light Probe Group around the islet + main island hero spots; bake occlusion culling; confirm realtime light count = 2 (beacon + torch) in Frame Debugger.
-4. **Physics + footstep surfaces** — add `MeshCollider` (convex off) on tower/dock/house/brick kit, `BoxCollider` on fence/crates; tag by `SurfaceType` (Stone/Wood/Metal/Sand) so `FootstepController`'s raycast maps to the right SFX bank.
-5. **Day 5 continuation (tasks 9-14)** — shark AI (3-5 ScriptableObject-driven, fin visibility, circling/stalking, splash/blood attract, flare repel, night+storm scaling), AdaptiveStorm learns the player's preferred channel route, boat-inventory ferry before dusk, lore slots + hint system, safety/mercy tuning, full-island profile.
-6. **On-device profile + build** — with archipelago + baked lighting + textures + LODs, run `adb shell dumpsys gfxinfo com.company.lastlight framestats` + Unity Profiler for one full Day→Dusk→Night loop; verify SRP Batcher batches and tune texture quality per tier.
+1. **Save → v4** — persist `boatCondition01`, `PlayerPrefs LL_Cross_*` (or move to save `boatRouteCounts`), and `SharkProfile` tweaks; migration bump `version 3→4`.
+2. **ShaderGraphs** — author `LL_BrickMoss` (brick + `G* mossColor` + `B* algaeColor` + `_LL_RoughnessScale`) and wire `OceanController` + `MossWetnessDriver` globals to URP/Lit graphs. Bake lightmap UVs already handled by `EnvironmentImportPostprocessor`.
+3. **Terrain + collision** — raycast `WorldScatter` onto `Terrain` heightfield; add `MeshCollider`/`BoxCollider` + `SurfaceType` tagging (`Stone/Wood/Metal/Sand`) for `FootstepController`.
+4. **Lightmap + occlusion** — archipelago `isStatic` bake; Light Probe Group around islet + castle/bunker/cannery; occlusion culling bake; confirm `realtimeCount==2` in Frame Debugger.
+5. **Flare/repel wiring** — flare pickup + `Interactable` that calls `SharkController.Repel`; lantern toggle repel; hook `SharkHit*Event` to `AudioManager` SFX.
+6. **On-device profile** — full `Dawn→Dusk(boat ferry)→Night(sharks+storm)→Dawn` loop via `adb shell dumpsys gfxinfo com.company.lastlight framestats` + Unity Profiler; `SRP Batcher: N batches`; `Application.targetFrameRate` + `Optimized Frame Pacing` re-check.
 
 ---
 
-## Art Guide (Day 4) — style, budgets, naming, pipeline
+## Art Guide (Day 5+ — incl. Checkpoint 2) — style, budgets, naming, pipeline
 
 ### Style
 
@@ -281,9 +290,11 @@ Stylized-realistic, weathered **North Atlantic**: white-and-red lighthouse with 
 - **Brick kit** — `LL_BrickKit.fbx` (476 tris, 37 parts: wall straight/corner/broken/arch/window/door, floor, stairs×4, beam, pillar, rubble×9, low wall). `CastleAssembler` + `BunkerAssembler` pull parts by child name and `PaintVertexMoss`. Both are `isStatic`.
 - **Nature** — `LL_NatureKit.fbx` (862 tris: rocks 6, cliffs 2, pine tall+short, scrub, grass/fern cards, driftwood, shells, seaweed). `WorldScatter` (90 pines/40 scrub/24 rocks/120 grass, avoiding islet+channel, `enableInstancing`).
 - **Boat** — `LL_Boat.fbx` (540 tris). `BoatDockManager` spawns `Dock_MainIsland (-210,-6)` + `Dock_Islet (-445,-6)` + `Boat (-215,-0.9,-6)`. `BoatController` fake buoyancy (`bob 0.18m/0.85Hz`, storm-scaled), **joystick/WASD steering** (`thrust 7`, `maxSpeed 6.5`, **~75 s calm crossing**). Board: get within `2.2 m`, `E`/`Space`; while aboard `CharacterController` is disabled and player is parented to `PlayerSeat`. Unboard with `E`/`Space` (exit to starboard). Storm nurtures `condition` at `0.006/s`; shark hit costs `0.14`; sink is permanent (`y→-2.5`, `enabled=false`, mercy at dawn). Wake particles + creak are optional slots. `BoatCrossingEvent`/`BoatDamagedEvent` + `PlayerPrefs` route counts feed the future AdaptiveStorm link (task 10).
-- **Shark proxy** — `LL_Shark.fbx` (24 tris: fin + body). Geometry only at Checkpoint 1; full AI (steering, circling, attack, flare repel, route learning) is tasks 9-11 after you say *continue*.
+- **Shark proxy** — `LL_Shark.fbx` (24 tris: fin + body). Full AI landed at CP2: `SharkController` (3, `SharkProfile` SO — cruise 2.4/stalk 4.2/attack 6.8 m/s, detect 38/18 m, night×1.35 storm×1.55 route×1.35, splash attract, flare repel 5 s, fin telegraph via camera wobble + bob).
 
-### 8) Audio
+### 8) Audio — shark telegraph + base
+
+- Shark AI telegraphs visually (fin wobble via `finWobbleAmp`, circling → lunge tell) + camera nudge (`shakeOnApproach 0.18`). Wire audio: hook `SharkHitBoatEvent`/`SharkHitSwimmerEvent` (via `EventBus`) to `AudioManager` for splash/hit SFX + `WeatherManager.StormIntensity` for storm audio intensity. No extra scene setup.
 
 - Create an empty `AudioManager` root or let `SceneBootstrap` spawn it (`AudioManager`). Assign:
   - `windClip, rainClip, wavesClip, interiorHumClip, generatorHumClip, AudioLowPassFilter lowPass`.
@@ -293,10 +304,17 @@ Stylized-realistic, weathered **North Atlantic**: white-and-red lighthouse with 
 - On the player: `FootstepController` is auto-added by `SceneBootstrap` if missing; set its `groundMask` to the terrain/blockout layer.
 - Interior muffling: add a `BoxCollider(isTrigger)` + `InteriorAudioZone` to the tower interior (or reuse the `ZoneVolume` trigger sized to the room); add an `AudioLowPassFilter` to the `Main Camera` / listener (assign to `AudioManager.lowPass`).
 
-### 9) Lore notes (8)
+### 9) Lore notes (8) — now on archipelago
 
-- Create 8 assets in `Assets/World/Notes/` (or any folder): `Create → LastLight → World Note`. For each: set `noteNumber 1..8`, `noteTitle`, `bodyText` (the keeper's story — placeholder text is fine for now), optional `paperSprite`/`locationHint`.
-- `NotePlacement` auto-places 8 cubes at fixed spots across the 5 zones (+ stairs/cave). `NotePickup` is now also wired for the lighthouse log (`LL_Note_Paper`): `LighthouseAreaAssembler` spawns `Note_KeepersLog` inside the tower and adds `NotePickup` + `WorldNoteData` if any exist in `Resources/`.
+- `NotePlacement.DefaultPositions` are archipelago-correct: 3 on the **islet** (`-520`: keeper's room/stairs/lens) + **castle (40,140)** + **bunker (-140,90)** + **cannery pier (-180,-140)** + **mountain/cave (110,280)** + **ruins (-20,-40)**. Create `WorldNoteData` assets for each if you want real text (placeholder logs are auto-created).
+- `NotePickup` is also wired for the lighthouse log (`LL_Note_Paper`): `LighthouseAreaAssembler` spawns `Note_KeepersLog` inside the tower and adds `NotePickup` + `WorldNoteData` if any exist in `Resources/`.
+
+### 9b) Ferry & world hints (CP2 new)
+
+- **BoatInventory** (`Systems/BoatInventory.cs`, `18 kg`) — `StashFromPlayer`/`UnloadToPlayer` + `BoatInventoryChangedEvent`. **FerryBootstrap** (`World/FerryBootstrap.cs`) auto-unloads to player on `BoatCrossingEvent.Side=="Islet"` and logs dusk ferry weight (hint for mercy). Both auto-spawned via `SceneBootstrap`.
+- **AdaptiveStorm route learning** — `AdaptiveStormDirector.RecordBoatCrossing` subscribes to `BoatCrossingEvent`; injects `Channel:Main/Islet` weight (`|bias|×0.9`) and decays with `DecayBias` (called from `DayLoopController.EnterDawn`). Shark channel aggro consumes the same `PlayerPrefs LL_Cross_Main/Islet` route bias (night×1.35 storm×1.55 route×1.35).
+- **WorldHints** (`World/WorldHints.cs`) — 4 diegetic smoke/light/audio hints: castle `(40,140)`, bunker `(-140,90)`, cave `(110,280)`, cannery `(-180,-140)` (smoke column + warm point light `55 m, 1.1→0.38`, particle 24/1.2/s). Auto-spawned via `SceneBootstrap`.
+- **Mercy/safety** — `DayLoopController.SpawnMercySupply` now drops at the **islet dock** (`WorldConfig.isletDock`) + **partially repairs the boat** (`+0.35 condition`, re-enable if sunk-disabled) after 3 consecutive failed nights (`GameDefines.MercySupplyAfterFailedNights`). Shark telegraph is fin wobble + circling tell + camera nudge (0.18→0.9 on hit) + fin always above water.
 
 ### 10) Packages & baking (when you add textures / meshes)
 

@@ -53,7 +53,9 @@ namespace LastLight.World
         void OnEnable()
         {
             if (_player == null) _player = FindFirstObjectByType<LastLight.Player.PlayerController>();
+            OnEnableRouteHook();
         }
+        void OnDisable() => OnDisableRouteHook();
 
         void Update()
         {
@@ -209,6 +211,32 @@ namespace LastLight.World
             _totalTime += 5f; // weight this as "5 seconds of presence"
         }
 
+        // Task 10: boat route bias — sharks + storm target the player's favourite channel crossing.
+        float _boatRouteBias; // -1=islet favoured, +1=main favoured, 0=balanced
+        public void RecordBoatCrossing(string side)
+        {
+            int mainC = PlayerPrefs.GetInt("LL_Cross_Main", 0);
+            int isletC= PlayerPrefs.GetInt("LL_Cross_Islet",0);
+            int total = mainC + isletC;
+            if (total < 2) return;
+            _boatRouteBias = (float)(mainC - isletC) / total; // already updated by BoatController before this
+            // inject into storm weights: favoured side becomes a Channel target
+            string favSide = _boatRouteBias > 0.22f ? "Main" : _boatRouteBias < -0.22f ? "Islet" : null;
+            if (favSide != null)
+                _targetWeights[$"Channel:{favSide}"] = Mathf.Abs(_boatRouteBias) * 0.9f;
+        }
+
+        void OnBoatCrossing(Systems.BoatCrossingEvent e) => RecordBoatCrossing(e.Side);
+
+        void OnEnableRouteHook()
+        {
+            EventBus.Subscribe<Systems.BoatCrossingEvent>(OnBoatCrossing);
+        }
+        void OnDisableRouteHook()
+        {
+            EventBus.Unsubscribe<Systems.BoatCrossingEvent>(OnBoatCrossing);
+        }
+
         /// <summary>Called each Dawn to forget a fraction of old bias.</summary>
         public void DecayBias()
         {
@@ -218,6 +246,7 @@ namespace LastLight.World
             foreach (var k in gathers) _gatherCounts[k] *= 1f - GameDefines.AdaptiveDecayPerDay;
             _interiorTime *= 1f - GameDefines.AdaptiveDecayPerDay;
             _totalTime    *= 1f - GameDefines.AdaptiveDecayPerDay;
+            _boatRouteBias *= 1f - GameDefines.AdaptiveDecayPerDay;
         }
 
         // ── Serialization (SaveManager) ──

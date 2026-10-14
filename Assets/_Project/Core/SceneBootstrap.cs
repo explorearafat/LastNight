@@ -29,6 +29,10 @@ namespace LastLight.Core
             EnsureManager<LastLight.Survival.SaveManager>("SaveManager");
             EnsureManager<LastLight.World.DayLoopController>("DayLoop");
             EnsureManager<LastLight.World.AdaptiveStormDirector>("AdaptiveStorm");
+            EnsureManager<LastLight.Systems.SharkController>("Sharks");
+            EnsureManager<LastLight.Systems.BoatInventory>("BoatInventory");
+            EnsureManager<LastLight.World.FerryBootstrap>("Ferry");
+            EnsureManager<LastLight.World.WorldHints>("WorldHints");
             EnsureManager<LastLight.UI.DebugOverlay>("DebugOverlay");
             EnsureManager<LastLight.UI.DebugConsole>("DebugConsole");
             EnsureManager<LastLight.UI.NotePresenter>("NotePresenter");

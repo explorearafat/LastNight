@@ -58,14 +58,14 @@ namespace LastLight.World
 
         static List<Vector3> DefaultPositions() => new()
         {
-            new Vector3(  0.8f, 0.9f,  0.4f),  // 1 keeper's room
-            new Vector3(  0.6f, 4.2f,  0.2f),  // 2 stairs
-            new Vector3(  0f,   8.2f,  0f  ),  // 3 lens room
-            new Vector3(-12f,  0.5f, -22f ),   // 4 beach / wreck cove
-            new Vector3( 28f,  1.2f,   8f ),   // 5 pine forest
-            new Vector3(-26f,  0.8f,   4f ),   // 6 cannery
-            new Vector3(  9f,  18f,   30f ),   // 7 cliff + cave
-            new Vector3( -6f,  0.6f,  12f ),   // 8 mid-island trail
+            new Vector3(-520f+0.8f, 0.9f,  0.4f), // 1 keeper's room (islet)
+            new Vector3(-520f+0.6f, 4.2f,  0.2f), // 2 stairs (islet)
+            new Vector3(-520f+0f,   8.2f,  0f  ), // 3 lens room (islet)
+            new Vector3(  40f,  0.5f, 140f),     // 4 castle
+            new Vector3(-140f, 0.8f,  90f),     // 5 bunker
+            new Vector3(-180f, 0.8f,-140f),     // 6 cannery/pier
+            new Vector3( 110f, 18f, 280f),      // 7 mountain / cave
+            new Vector3( -20f, 0.6f, -40f),     // 8 ruins / mid-island
         };
     }
 }

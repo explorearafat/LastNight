@@ -47,9 +47,10 @@ A relentless storm has cut the island off from the world. The lighthouse is the 
 | **Weather VFX** | GPU rain particles, wind-blown foliage, lightning flashes with delayed thunder |
 | **~1 km² Archipelago** | **Lighthouse islet (r75) + 260 m shark channel + main island (750 m)** — beach + forest + **castle (brick) + bunker (flooded) + cannery + mountain/cave + ruins**. Blockout; brick kit + nature kit dress the hero spots |
 | **Lighthouse Islet (Dressed)** | Same 16 m tower + keepers house etc. as Day 4, **now on its own islet** `(-520,0)` — base that must be kept lit, ferried to by boat — **~6.3K tris** |
-| **Boat + Shark Channel** | Rowboat/motorboat — fake buoyancy, joystick steering, **~75 s calm crossing**, board/unboard, wake + storm/shark damage, permanent sink + mercy. Channel water looks dark & threatening, storm-scaled |
+| **Boat + Shark Channel** | Rowboat/motorboat — fake buoyancy, joystick steering, **~75 s calm crossing**, board/unboard, wake + storm/shark damage, permanent sink + mercy. **Sharks: 3 in-channel (`SharkProfile` SO), patrol→circle→stalk→attack→repel, fin+wobble telegraph, splash/blood attract, flare repel, night×1.35 storm×1.55 route×1.35**. Channel water looks dark & threatening, storm-scaled |
 | **Brick Ruins** | **Modular brick kit** (37 meshes, 476 tris — wall/corner/broken/arch/window/door, floor, stairs, beam, pillar, rubble) → **collapsed castle** + **half-flooded bunker** (moss/algae vertex colors). Old, broken, overgrown — `MossWetnessDriver` |
 | **Procedural Scatter** | Pine/scrub + grass/fern cards + rocks/cliffs + driftwood/shells — zone+slope driven, avoid islet+channel, GPU instanced |
+| **Ferry + Hints** | **BoatInventory `18 kg`** + `FerryBootstrap` (auto-unload on islet); **AdaptiveStorm route-learned** (`Channel:Main/Islet` weight, decays with `DecayBias`); **8 lore on archipelago** (islet 3 + castle/bunker/cannery/mountain/ruins); **smoke+warm-light hints** at the 4 main-island heroes |
 | **Blender→Unity Pipeline** | Reusable `Tools/Blender/ll_pipeline.py` + Unity `EnvironmentImportPostprocessor` — one `build_<asset>.py` per asset, 3-angle review screenshots, 1 material/mesh, 2 LODs, ASTC |
 | **Ocean** | Expanded **1400×1400** plane, **channel darkens with storm**, shore foam, vertex sine — `IsInsideChannel` shared by boat/shark |
 | **Baked Lighting** | Baked GI + light probes; only 2 dynamic lights — rotating beacon (7 rpm, lens-scatter) + player torch |
@@ -108,16 +109,19 @@ Dawn ──► Day ──► Dusk ──► Night ──► Dawn ...
          │
     LighthouseAreaAssembler ──► Generated FBX (16m tower + 14 props)
     EnvironmentImportPostprocessor (scale, secondary UVs, ASTC, LODGroup)
+    SharkController(SharkProfile) ↔ BoatController/BoatInventory/FerryBootstrap
+    AdaptiveStormDirector(Channel:Main/Islet)  WorldHints(smoke+light)
 ```
 
 | Module | Key files | Notes |
 |--------|-----------|-------|
-| **Core** | `GameDefines`, `Singleton<T>`, `EventBus`, `QualitySettingsManager`, `GameBootstrapper`, `InteractionSystem`, `SceneBootstrap` | `SceneBootstrap.EnsureLighthouseArea()` auto-spawns the dressed zone |
-| **World** | `DayNightCycle`, `WeatherManager`, `WorldBuilder`, `IslandLayout`, `WorldConfig`, `WorldQualitySettings`, `WorldSetup`, `LightingManager`, `OceanController`, `WeatherVFXManager`, `DayLoopController`, `AdaptiveStormDirector`, `ZoneVolume`, `StairsVolume`, `InteractionDoor`, `DamageableStructure`, `GatherableSpawner`, `NotePickup`, `NotePlacement`, `WorldNoteData`, `LighthouseAreaAssembler` | Lighthouse zone is the first dressed zone; blockout remains for the other 4 |
+| **Core** | `GameDefines`, `Singleton<T>`, `EventBus`, `QualitySettingsManager`, `GameBootstrapper`, `InteractionSystem`, `SceneBootstrap` | `EnsureLighthouseArea/BoatAndDocks` + `EnsureWorld` auto-spawns sharks/boat/moss/hints |
+| **World** | `DayNightCycle`, `WeatherManager`, `WorldBuilder`, `IslandLayout`, `WorldConfig`, `WorldQualitySettings`, `WorldSetup`, `LightingManager`, `OceanController(channel)`, `IsletPositionPatch`, `MossWetnessDriver`, `WorldScatter`, `CastleAssembler`, `BunkerAssembler`, `DayLoopController(mercy+boat heal)`, `AdaptiveStormDirector(Channel:*)`, `ZoneVolume`, `DamageableStructure`, `GatherableSpawner`, `NotePickup`, `NotePlacement(islet/main)`, `WorldNoteData`, `LighthouseAreaAssembler`, `FerryBootstrap`, `WorldHints` | Archipelago: islet+channel+main island; hero ruins from brick kit |
+| **Systems** | `BoatController`, `BoatDockManager`, `BoatInventory(18kg)`, `SharkController(SharkProfile)` | Boat ferry + shark channel — `BoatCrossing/Damaged` + `SharkHit*Event` |
 | **Player** | `PlayerController`, `PlayerInputActions`, `PlayerVisuals`, `ThirdPersonCamera`, `TouchInput`, `CharacterSetup` | CharacterController, weighted movement, wind stumble |
 | **Survival** | `PlayerStats`, `WarmthVolume`, `Inventory`, `SaveManager` | v3 save (`collectedNotesCsv`), warmth counter |
 | **Lighthouse** | `LighthouseState`, `LighthouseInteractables` | Fuel / generator / lens / structuralDamage (permanent) |
-| **Audio** | `AudioManager`, `FootstepController`, `InteriorAudioZone` | 12-source pool, low-pass muffling |
+| **Audio** | `AudioManager`, `FootstepController`, `InteriorAudioZone` | 12-source pool, low-pass muffling; shark `SharkHit*Event` hooks |
 | **UI** | `DebugOverlay`, `DebugConsole`, `HUDController`, `NotePresenter` | Vignette, console, diegetic note overlay |
 | **Art Pipeline** | `Tools/Blender/ll_pipeline.py`, `Tools/Blender/build_*.py` | Blender 5.2 headless → FBX + 3-angle screenshots |
 | **Editor** | `Assets/_Project/Editor/EnvironmentImportPostprocessor.cs` | Auto-fixes `Generated/` FBX import (scale, secondary UVs, isStatic, ASTC) |
@@ -155,8 +159,10 @@ Assets/_Project/
 │                  # GatherableSpawner (main-island-only), LighthouseInterior,
 │                  # LighthouseAreaAssembler (now on islet),
 │                  # ZoneVolume, StairsVolume, InteractionDoor, WorldBuilder,
-│                  # NotePickup, NotePlacement, WorldNoteData
-├── Systems/       # BoatController (fake buoyancy, ~75s crossing), BoatDockManager
+│                  # NotePickup, NotePlacement, WorldNoteData,
+│                  # FerryBootstrap, WorldHints
+├── Systems/       # BoatController (fake buoyancy, ~75s crossing), BoatDockManager,
+│                  # BoatInventory(18kg), SharkController(SharkProfile)
 ├── Survival/      # PlayerStats, WarmthVolume, Inventory, SaveManager
 ├── Lighthouse/    # LighthouseState, LighthouseInteractables
 ├── Audio/         # AudioManager, FootstepController, InteriorAudioZone
@@ -308,7 +314,7 @@ Budgets: props `500–3000` tris, hero props `≤ 8000`, lighthouse `≤ 25000`.
 
 See [`PROGRESS.md`](PROGRESS.md) for the full day-by-day report — completed work, decisions, art guide, per-asset reviews, manual steps & Day 5 plan.
 [`PERFORMANCE.md`](PERFORMANCE.md) tracks the static performance audit (tri counts, draw-call estimates, bottlenecks).
-[`Docs/AssetReviews/`](Docs/AssetReviews/) — 33 Day4 + 12 Day5( `Day5/` ) review screenshots (3 per asset).
+[`Docs/AssetReviews/`](Docs/AssetReviews/) — 33 Day4 + 12 Day5( `Day5/` ) + Shark FP2 review screenshots (3 per asset).
 
 | Day | Milestone | Status |
 |-----|-----------|--------|
@@ -317,7 +323,7 @@ See [`PROGRESS.md`](PROGRESS.md) for the full day-by-day report — completed wo
 | **Day 3** | Island (~1 km², 5 zones), lighting, ocean, weather VFX, audio, interiors & 8 lore notes | ✅ Done |
 | **Day 4** | Blender→Unity pipeline + Lighthouse zone dressed (tower 16m + 14 props, ~6.3K tris, 33 reviews) | ✅ Done |
 | **Day 5 (CP1)** | Archipelago (islet + 260m shark channel + main island), brick kit, moss/wetness, nature kit, scatter, castle+bunker, ocean(channel), boat+docks, shark proxy | ✅ Done (Checkpoint 1) |
-| **Day 5 (CP2)** | Shark AI, AdaptiveStorm route learning, boat ferry gameplay, lore + hints, safety/mercy, device profile | ⏳ Next |
+| **Day 5 (CP2)** | **Sharks (3, SharkProfile SO, 6.8 m/s, repel, telegraph), AdaptiveStorm learns route, 18 kg ferry (auto-unload), 8 lore on archipelago, smoke+warm hints, mercy+boat-heal** | ✅ Done (Checkpoint 2) |
 
 ---
 

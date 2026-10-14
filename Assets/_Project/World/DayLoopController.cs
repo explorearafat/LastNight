@@ -179,13 +179,24 @@ namespace LastLight.World
         void SpawnMercySupply()
         {
             Debug.Log("[DayLoop] Mercy supply drop spawned near the lighthouse.");
-            var wb = FindFirstObjectByType<WorldBuilder>();
-            Vector3 pos = wb != null ? wb.GetPlayerSpawnPosition() + Random.insideUnitSphere * 6f : new Vector3(0, 0.5f, -4f);
-            pos.y = 0.5f;
-            // Small stash
+            // After archipelago: mercy near the islet dock so the player can ferry without sharks being buffed
+            var cfg = FindFirstObjectByType<WorldConfig>();
+            Vector3 dockPos = cfg != null ? new Vector3(cfg.isletDock.x, 0.5f, cfg.isletDock.y) : new Vector3(-445f, 0.5f, -6f);
+            Vector3 pos = dockPos + new Vector3(Random.Range(-3f,3f), 0, Random.Range(-3f,3f));
+            // Small stash + boat heal (mercy after repeated sinkings)
             GatherableSpawner.CreatePlaceholder(ItemType.Fuel, pos + new Vector3(0.9f, 0, 0));
             GatherableSpawner.CreatePlaceholder(ItemType.Food, pos + new Vector3(-0.9f, 0, 0));
             GatherableSpawner.CreatePlaceholder(ItemType.Wood, pos);
+            // also partially repair the boat so the player is not hard-stuck
+            var boat = FindFirstObjectByType<Systems.BoatController>();
+            if (boat != null && boat.Condition01 < 0.45f)
+            {
+                // use reflection to bump condition (field is private)
+                var fi = typeof(Systems.BoatController).GetField("condition", System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+                if (fi != null) fi.SetValue(boat, Mathf.Clamp01((float)fi.GetValue(boat) + 0.35f));
+                // re-enable if it was sunk-disabled
+                if (!boat.enabled) boat.enabled = true;
+            }
         }
 
         // For SaveManager / debug

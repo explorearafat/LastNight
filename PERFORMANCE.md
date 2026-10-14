@@ -24,12 +24,13 @@ Day 5 target: island total < ~300K visible tris at once, < 150 draws, 30 FPS min
 | `LL_BrickKit.fbx` (37 meshes) | 476 | 3000 per wall | 84% under | 12 kit types + variants; reused by Castle + Bunker, counted once |
 | `LL_NatureKit.fbx` (25 meshes) | 862 | 3000 per tree | 71% under | 6 rocks + 2 cliffs + 2 pines + scrub + grass/fern cards + driftwood + shells + seaweed |
 | `LL_Boat.fbx` (13) | 540 | 3000 | 82% under | Hull+taper, floor, 2 seats, transom, motor, 4 oar locks, oar+blade |
-| `LL_Shark.fbx` (2) | 24 | 800 | 97% under | Fin + body proxy — AI in tasks 9-11 |
+| `LL_Shark.fbx` (2) | 24 | 800 | 97% under | Fin + body — AI: `SharkController` 3 sharks, `SharkProfile` SO |
 | **Day 5 new** | **1902** | — | — | 476+862+540+24 |
 | Day 4 lighthouse zone | 6274 | 250K | 97.5% free | 23 FBX, islet at (-520,0), still visible (patched) |
-| **Archipelago assembled (Day 4 + Day 5 CP1, no double-count)** | **~10–14K tris at once** | 250K | **~94–96% free** | Islet + channel + main island zones + castle/bunker blockout + scatter (instanced) |
+| **Day 5 CP2 extras** | **~0 tris new FBX** | — | — | `SharkController`/`BoatInventory`/`FerryBootstrap`/`WorldHints` are C#; reuses Day 5 kits |
+| **Archipelago assembled (Day 4 + Day 5 CP1+CP2, no double-count)** | **~10–14K tris at once** | 250K | **~94–96% free** | Islet + channel + main island zones + castle/bunker + scatter (instanced) + 3 shark fins |
 | All FBX on disk | 27 files, ~1.4 MB | — | — | Day4 23 + Day5 4 |
-| Screenshots (review gate) | **33 (Day4) + 12 (Day5) = 45** | — | — | BrickKit/NatureKit/Boat/Shark 3× each |
+| Screenshots (review gate) | **33 (Day4) + 12 (Day5 CP1+CP2) = 45** | — | — | BrickKit/NatureKit/Boat/Shark 3× each |
 
 ## Current Estimate (Editor, 1080p, islet + main island core)
 
@@ -69,4 +70,4 @@ Day 5 target: island total < ~300K visible tris at once, < 150 draws, 30 FPS min
 > Day 5 full island target: < 300K visible / 150 draws — current islet+core is ~4–5% of the visible-tri budget, so
 > textures/LODs/baked lighting/remaining zones + sharks can still fit.
 
-*Generated Day 5 Checkpoint 1 — update after Checkpoint 2 (sharks + ferry gameplay) and after on-device profiling.*
+*Generated Day 5 Checkpoint 2 — Day 5 tasks 1-14 done. Update after on-device profiling with baked lighting + Probe bake.*
