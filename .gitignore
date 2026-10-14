@@ -7,4 +7,6 @@
 [Uu]ser[Ss]ettings/
 [Mm]emoryCaptures/
 [Rr]ecordings/
+website/node_modules/
+website/dist/
 # Never ignore Assets or Packages
