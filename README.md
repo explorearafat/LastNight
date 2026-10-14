@@ -46,10 +46,12 @@ A relentless storm has cut the island off from the world. The lighthouse is the 
 | **Dynamic Weather** | Clear → Rain → Fog → Storm with intensity 0–1 blending wind, rain, fog, movement penalty & audio |
 | **Weather VFX** | GPU rain particles, wind-blown foliage, lightning flashes with delayed thunder |
 | **~1 km² Island** | 5 zones — Lighthouse, Pebble Beach & Shipwreck Cove, Pine Forest, Abandoned Cannery, Cliff & Cave — playable on blockout before any art import |
+| **Lighthouse Zone (Dressed)** | 16 m tower + keepers house, generator + fuel, lantern, cliff rocks, driftwood, fence/dock, crates/barrels, anchor/buoy/chain, keepers-log — **~6.3K tris, 2.5% of High budget** |
+| **Blender→Unity Pipeline** | Reusable `Tools/Blender/ll_pipeline.py` + Unity `EnvironmentImportPostprocessor` — one `build_<asset>.py` per asset, 3-angle review screenshots, 1 material/mesh, 2 LODs, ASTC |
 | **Ocean** | 1200×1200 m plane with CPU sine waves (121 verts, <0.05 ms) → ready to swap for a water shader |
 | **Baked Lighting** | Baked GI + light probes; only 2 dynamic lights — rotating beacon (7 rpm, lens-scatter) + player torch |
-| **Lighthouse Interiors** | Wood floor, 12-step spiral stairs, generator room, lens room, boardable windows, openable doors |
-| **Lore Notes** | 8 diegetic notes (`WorldNoteData` SO) across the island — `NotePickup` → `NotePresenter` overlay, persisted in save |
+| **Lighthouse Interiors** | Spiral stairs (14 + `StairsVolume`), generator room, lens room (emissive Fresnel), boardable windows, openable doors |
+| **Lore Notes** | 8 diegetic notes (`WorldNoteData` SO) across the island — `NotePickup` → `NotePresenter` overlay, persisted in save; keepers-log in the lighthouse zone |
 | **Audio** | 12-source pool, 5 looping ambience layers, surface-aware footsteps, generator hum, interior muffling, random presence sounds |
 | **Inventory** | Weight-based (20 kg cap) — `Weight01` slows movement; 6 verbs (Pickup, Refuel, Repair Lens/Generator, BoardWindow, EatFood) |
 | **Auto-Save & Mercy** | JSON `lastlight_save.json` in `persistentDataPath` at Dusk + on wreck; mercy reset after 3 consecutive wrecks |
@@ -76,6 +78,7 @@ A relentless storm has cut the island off from the world. The lighthouse is the 
 | **Input** | Input System 1.11 | Unified touch / keyboard / gamepad |
 | **Camera** | Cinemachine 3.1 | Damping, collision, handheld noise |
 | **Animation** | Animation Rigging 1.3 | Foot IK, head look-at, shiver layers |
+| **Art** | Blender 5.2 LTS (headless) → FBX | Procedural PBR, `ll_pipeline.py` |
 | **Language** | C# — clean, commented, modular | `LastLight` root namespace + `LastLight.asmdef` |
 
 ---
@@ -99,24 +102,39 @@ Dawn ──► Day ──► Dusk ──► Night ──► Dawn ...
          │                │
     Inventory  PlayerStats  GatherableSpawner  NotePlacement
     PlayerController  TouchInput  ThirdPersonCamera
+         │
+    LighthouseAreaAssembler ──► Generated FBX (16m tower + 14 props)
+    EnvironmentImportPostprocessor (scale, secondary UVs, ASTC, LODGroup)
 ```
 
 | Module | Key files | Notes |
 |--------|-----------|-------|
-| **Core** | `GameDefines`, `Singleton<T>`, `EventBus`, `QualitySettingsManager`, `GameBootstrapper`, `InteractionSystem`, `SceneBootstrap` | Bootstrap spawns everything missing — scene is playable on first open with no manual setup |
-| **World** | `DayNightCycle`, `WeatherManager`, `WorldBuilder`, `IslandLayout`, `WorldConfig`, `WorldQualitySettings`, `WorldSetup`, `LightingManager`, `OceanController`, `WeatherVFXManager`, `DayLoopController`, `AdaptiveStormDirector`, `ZoneVolume`, `StairsVolume`, `InteractionDoor`, `DamageableStructure`, `GatherableSpawner`, `NotePickup`, `NotePlacement`, `WorldNoteData` | ~1 km² blockout, terrain opt-in, 5 zones with prefab swap |
+| **Core** | `GameDefines`, `Singleton<T>`, `EventBus`, `QualitySettingsManager`, `GameBootstrapper`, `InteractionSystem`, `SceneBootstrap` | `SceneBootstrap.EnsureLighthouseArea()` auto-spawns the dressed zone |
+| **World** | `DayNightCycle`, `WeatherManager`, `WorldBuilder`, `IslandLayout`, `WorldConfig`, `WorldQualitySettings`, `WorldSetup`, `LightingManager`, `OceanController`, `WeatherVFXManager`, `DayLoopController`, `AdaptiveStormDirector`, `ZoneVolume`, `StairsVolume`, `InteractionDoor`, `DamageableStructure`, `GatherableSpawner`, `NotePickup`, `NotePlacement`, `WorldNoteData`, `LighthouseAreaAssembler` | Lighthouse zone is the first dressed zone; blockout remains for the other 4 |
 | **Player** | `PlayerController`, `PlayerInputActions`, `PlayerVisuals`, `ThirdPersonCamera`, `TouchInput`, `CharacterSetup` | CharacterController, weighted movement, wind stumble |
 | **Survival** | `PlayerStats`, `WarmthVolume`, `Inventory`, `SaveManager` | v3 save (`collectedNotesCsv`), warmth counter |
 | **Lighthouse** | `LighthouseState`, `LighthouseInteractables` | Fuel / generator / lens / structuralDamage (permanent) |
 | **Audio** | `AudioManager`, `FootstepController`, `InteriorAudioZone` | 12-source pool, low-pass muffling |
 | **UI** | `DebugOverlay`, `DebugConsole`, `HUDController`, `NotePresenter` | Vignette, console, diegetic note overlay |
+| **Art Pipeline** | `Tools/Blender/ll_pipeline.py`, `Tools/Blender/build_*.py` | Blender 5.2 headless → FBX + 3-angle screenshots |
+| **Editor** | `Assets/_Project/Editor/EnvironmentImportPostprocessor.cs` | Auto-fixes `Generated/` FBX import (scale, secondary UVs, isStatic, ASTC) |
 
 ---
 
 ## 📁 Project Structure
 
 ```
+Tools/Blender/
+├── ll_pipeline.py             # Reusable pipeline: palette, PBR, UV, LOD, FBX, screenshots
+├── build_lighthouse.py        # LL_Lighthouse_Tower (1696 tris, 20m hero)
+├── build_keepers_house.py     # LL_Keepers_House (208 tris)
+├── build_generator.py         # LL_Generator (368) + LL_Fuel_Canister (240)
+├── build_props_a.py           # LL_Lantern (292) + LL_Rocks_Set (320, 4 var.) + LL_Driftwood (184)
+├── build_props_b.py           # LL_Fence/Dock + LL_Crates/Barrels + LL_Rusted_Props (anchor/buoy/chain)
+└── build_note_props.py        # LL_Note_Props (54) + LL_Note_Paper (18)
+
 Assets/_Project/
+├── Editor/        # EnvironmentImportPostprocessor (auto import settings for Generated/)
 ├── Core/          # GameDefines, Singleton, EventBus, QualitySettingsManager,
 │                  # GameBootstrapper, InteractionSystem, SceneBootstrap
 ├── Player/        # PlayerController, PlayerInputActions, PlayerVisuals,
@@ -125,15 +143,19 @@ Assets/_Project/
 │                  # AdaptiveStormDirector, IslandLayout, WorldConfig,
 │                  # WorldQualitySettings, WorldSetup, LightingManager,
 │                  # OceanController, WeatherVFXManager, DamageableStructure,
-│                  # GatherableSpawner, LighthouseInterior, ZoneVolume,
-│                  # StairsVolume, InteractionDoor, WorldBuilder,
+│                  # GatherableSpawner, LighthouseInterior, LighthouseAreaAssembler,
+│                  # ZoneVolume, StairsVolume, InteractionDoor, WorldBuilder,
 │                  # NotePickup, NotePlacement, WorldNoteData
 ├── Survival/      # PlayerStats, WarmthVolume, Inventory, SaveManager
 ├── Lighthouse/    # LighthouseState, LighthouseInteractables
 ├── Audio/         # AudioManager, FootstepController, InteriorAudioZone
 ├── UI/            # DebugOverlay, DebugConsole, HUDController, NotePresenter
+Assets/Environment/
+├── Generated/     # 23 FBX (15 unique, ~1.0 MB) — auto-fixes on import
+├── Textures/      # (Day 5) Poly Haven CC0 PBR sets + atlases
+Docs/AssetReviews/ # 33 review screenshots — 3 per asset group (front / ¾ / top)
 Assets/Scenes/
-└── Island.unity   # Bootstrap scene — playable with primitives before any art import
+└── Island.unity   # Bootstrap scene — playable; LighthouseArea auto-dresses on load
 Packages/manifest.json  # URP / Input System / Cinemachine / Rigging / TMP
 ```
 
@@ -145,19 +167,32 @@ Packages/manifest.json  # URP / Input System / Cinemachine / Rigging / TMP
 
 - **Unity 6** — `6000.0.38f1` or newer (via [Unity Hub](https://unity.com/download))
 - **Android Build Support** module (for device builds)
+- **Blender 5.2 LTS** (for rebuilding art — `C:/Program Files/Blender Foundation/Blender 5.2/blender.exe`)
 
 ### Open & Play
 
 ```bash
 git clone https://github.com/explorearafat/LastNight.git
 # Open folder in Unity Hub → it will import URP / Input System / Cinemachine / Rigging automatically
+# On first open Unity generates Library/ + .meta and the EnvironmentImportPostprocessor fixes Generated/ FBX
 ```
 
 1. Open `Assets/Scenes/Island.unity`
-2. Add empty GameObject `Bootstrap` → attach `LastLight.Core.SceneBootstrap` (or just hit Play — the bootstrap spawns everything missing)
-3. Hit **Play** — placeholder primitives (plane, cubes, cylinders) make the island playable on first open with no assets
+2. Hit **Play** — `SceneBootstrap` spawns managers + island blockout + **lighthouse area** (tower + house + props) + player. No manual wiring needed.
 
-> **No assets needed to run** — the ~1 km² blockout + lighthouse interior + ocean all build from primitives at runtime.
+> The lighthouse zone is dressed from `Assets/Environment/Generated/` FBX. The other 4 zones are still blockout — the game is playable on first open.
+
+### Rebuild art from Blender
+
+```bash
+# One asset
+"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --python Tools/Blender/build_lighthouse.py
+# All
+for f in Tools/Blender/build_*.py; do blender --background --python "$f"; done
+# Review screenshots appear in Docs/AssetReviews/
+```
+
+See the **Art Guide** in [`PROGRESS.md`](PROGRESS.md) for how to add a new asset with the pipeline.
 
 ### Packages (auto-installed)
 
@@ -225,32 +260,52 @@ Quality presets `Low / Medium / High` are switchable at runtime and persist to `
 
 ---
 
-## 🎨 Assets To Import
+## 🎨 Art Pipeline — Quick Add
 
-| Asset | Where to put |
-|-------|-------------|
-| Elias character model (~8k tris, humanoid) | `Assets/_Project/Player/Models/` |
-| Animations — Idle/Walk/Jog/Sprint/Shiver/Stumble/Turn-in-place | `Assets/_Project/Player/Animations/` |
-| Animator Controller (params: `Speed`, `IsSprinting`, `IsGrounded`, `Cold01`, `Fatigue`, `Stumble`, `Shiver`) | `Assets/_Project/Player/Animator/` |
-| Island terrain, rocks, lighthouse tower + lantern (low-poly + LODs) | `Assets/Environment/` (wire via `WorldConfig` + `IslandLayout.ZoneReplacement[]`) |
-| Rain particle texture, wind/rain audio loops | `Assets/_Project/World/VFX/` & `Audio/` |
-| Beacon lens flare / emissive texture | `Assets/_Project/Lighthouse/` |
+One new asset from scratch (see full guide in [`PROGRESS.md`](PROGRESS.md) → *Art Guide*):
 
-Until these arrive, everything runs on Unity primitives. See [`PROGRESS.md`](PROGRESS.md) → *Manual Steps* for the full wiring checklist (character import, island config, animator params, lighthouse beam, ocean, audio, 8 lore notes, lightmap bake, occlusion, device test).
+```python
+# Tools/Blender/build_my_asset.py
+import sys, os; sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+import ll_pipeline as ll, bpy, bmesh, math
+def build():
+    ll.clear_scene(); ll.set_scene_units()
+    mat = ll.make_pbr_material("LL_M_MyAsset", ll.PALETTE["wood_old"], roughness=0.85)
+    bpy.ops.object.empty_add(location=(0,0,0)); root=bpy.context.view_layer.objects.active; root.name="LL_My_Asset"
+    objs=[]
+    def pr(o): o.parent=root; objs.append(o); return o
+    # … bpy.ops.mesh.primitive_* …
+    ll.ensure_uvs(o); ll.assign_material(o, mat); pr(o)
+    print(f"[MY_ASSET] {sum(ll.tri_count(o) for o in objs)} tris"); ll.print_scene_stats()
+    ll.screenshot_trio("LL_My_Asset", look_at=(0,0,0.5))
+    for o in objs: ll.select_only(o); bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+    ll.export_fbx(objs, "LL_My_Asset.fbx")
+if __name__=="__main__": build()
+```
+
+```bash
+blender --background --python Tools/Blender/build_my_asset.py
+# Review Docs/AssetReviews/LL_My_Asset_*.png → critique → fix → repeat (up to 3×)
+# Wire into World/LighthouseAreaAssembler.cs (or the next zone's assembler)
+```
+
+Budgets: props `500–3000` tris, hero props `≤ 8000`, lighthouse `≤ 25000`. `1` material/mesh, `1024–2048` px textures, `2` LODs per hero. Naming: `LL_Prop_Name`.
 
 ---
 
 ## 📈 Progress
 
-See [`PROGRESS.md`](PROGRESS.md) for the full day-by-day report — completed work, decisions, known bugs, manual Unity steps & next-day plan.
-[`PERFORMANCE.md`](PERFORMANCE.md) tracks the static performance audit (hot-path allocations, draw calls, bottlenecks).
+See [`PROGRESS.md`](PROGRESS.md) for the full day-by-day report — completed work, decisions, art guide, per-asset reviews, manual steps & Day 5 plan.
+[`PERFORMANCE.md`](PERFORMANCE.md) tracks the static performance audit (tri counts, draw-call estimates, bottlenecks).
+[`Docs/AssetReviews/`](Docs/AssetReviews/) — 33 Blender review screenshots (3 per asset group).
 
 | Day | Milestone | Status |
 |-----|-----------|--------|
 | **Day 1** | Foundations — controller, touch, survival, time/weather, lighthouse, debug tools | ✅ Done |
 | **Day 2** | Character, core loop, adaptive storm, inventory, gatherables, light failure & auto-save | ✅ Done |
 | **Day 3** | Island (~1 km², 5 zones), lighting, ocean, weather VFX, audio, interiors & 8 lore notes | ✅ Done |
-| **Day 4** | Replace blockout with `Environment` meshes, bake lighting & occlusion, water shader, audio pass, animator sync, device profile & Android build | ⏳ Next |
+| **Day 4** | Blender→Unity pipeline + Lighthouse zone dressed (tower 16m + 14 props, ~6.3K tris, 33 reviews) | ✅ Done |
+| **Day 5** | Textures + atlases (Poly Haven CC0), LODs, lightmap/occlusion bake, next zone (Beach), device profile | ⏳ Next |
 
 ---
 

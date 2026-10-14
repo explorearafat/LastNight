@@ -53,6 +53,7 @@ namespace LastLight.Core
             }
 
             EnsureWorld();
+            EnsureLighthouseArea();
             EnsurePlayer();
         }
 
@@ -61,6 +62,43 @@ namespace LastLight.Core
             if (FindFirstObjectByType<T>() != null) return;
             var go = new GameObject(name);
             go.AddComponent<T>();
+        }
+
+        void EnsureLighthouseArea()
+        {
+            if (FindFirstObjectByType<LastLight.World.LighthouseAreaAssembler>() != null) return;
+            var la = new GameObject("LighthouseArea");
+            la.AddComponent<LastLight.World.LighthouseAreaAssembler>();
+            // Try to wire generated prefabs automatically (Resources fallback inside the assembler also works)
+            TryWireGeneratedPrefabs(la.GetComponent<LastLight.World.LighthouseAreaAssembler>());
+        }
+
+        static void TryWireGeneratedPrefabs(LastLight.World.LighthouseAreaAssembler a)
+        {
+            T Load<T>(string n) where T : Object => Resources.Load<T>($"Environment/Generated/{n}")
+                ?? Resources.Load<T>(n);
+            var t = a.GetType();
+            void Set(string field, Object v)
+            {
+                if (v == null) return;
+                var fi = t.GetField(field, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                fi?.SetValue(a, v);
+            }
+            Set("lighthousePrefab",   Load<GameObject>("LL_Lighthouse_Tower"));
+            Set("keepersHousePrefab", Load<GameObject>("LL_Keepers_House"));
+            Set("generatorPrefab",    Load<GameObject>("LL_Generator"));
+            Set("fuelCanisterPrefab", Load<GameObject>("LL_Fuel_Canister"));
+            Set("lanternPrefab",      Load<GameObject>("LL_Lantern"));
+            Set("rocksSetPrefab",     Load<GameObject>("LL_Rocks_Set"));
+            Set("driftwoodPrefab",    Load<GameObject>("LL_Driftwood"));
+            Set("fencePrefab",        Load<GameObject>("LL_Fence_4m"));
+            Set("dockPrefab",         Load<GameObject>("LL_Dock_5m"));
+            Set("cratesPrefab",       Load<GameObject>("LL_Crates"));
+            Set("barrelPrefab",       Load<GameObject>("LL_Barrel"));
+            Set("anchorPrefab",       Load<GameObject>("LL_Anchor"));
+            Set("buoyPrefab",         Load<GameObject>("LL_Buoy"));
+            Set("chainPilePrefab",    Load<GameObject>("LL_Chain_Pile"));
+            Set("notePaperPrefab",    Load<GameObject>("LL_Note_Paper"));
         }
 
         void EnsureWorld()

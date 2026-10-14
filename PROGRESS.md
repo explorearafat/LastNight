@@ -1,8 +1,8 @@
 # Last Light — PROGRESS.md
 
-## Status: Day 3 — Island, Lighting, Ocean & Audio (Done)
+## Status: Day 4 — Lighthouse Area Art Pipeline + Hero Assets (Done)
 
-> Game: realistic lighthouse-survival, Android, Unity 6 URP, no combat.
+> Game: realistic stylized lighthouse-survival, Android, Unity 6 URP, no combat.
 > Player: Elias, third-person, minimal HUD, touch + editor-friendly.
 > Pillar: it must feel like you are physically living this.
 
@@ -42,54 +42,174 @@
 
 | # | Task | What landed |
 |---|------|-------------|
-| 1 | **Island layout** | `World/IslandLayout.cs` — ~1 km² via `WorldConfig` (`WorldConfig` SO, `World/WorldConfig.cs`). 5 zones: **Lighthouse / Pebble Beach-Shipwreck Cove / Pine Forest / Abandoned Cannery / Cliff+Cave** as blockout cubes/cylinders. `ZoneDef[]` defaults sized for ~1 km²; each zone is `isStatic` for batching + probes. Supports `Assets/Environment/` mesh swap: `ZoneReplacement` array replaces any zone's blockout with an imported prefab at the same centre. Opt-in Unity Terrain path (`useTerrain`) creates a 129-res `TerrainData` when you flip the flag. `WorldBuilder` stays as the lighthouse-detail builder (guarded so IslandLayout + WorldBuilder don't double). Blockout keeps the game playable before any `Environment` import. |
-| 2 | **Mobile optimization** | `World/WorldConfig.cs` + `World/WorldQualitySettings.cs` + `World/WorldSetup.cs`. `WorldQualityTier` (lodBias, shadowDistance, terrainPixelError, terrainBasemapDistance, detail/tree/fog distances, realtimeShadows, pixelLightCount, maxDrawCalls) for Low/Med/High. `WorldQualitySettings` applies the tier from `QualitySettingsManager.Current` at Start + on change. `WorldSetup.ApplyLODAndOcclusion` sets `lodBias`/`shadowDistance`/`occlusionCulling` (occlusion on at ≥60 m). `GameDefines` adds `MaxDrawCalls` + `MaxTrisVisible` budget constants and documents the draw-call budget in the table above. Texture compression = ASTC (project setting — verified in Day 1 `GraphicsSettings`). Realtime shadows limited to the main directional Light; `isStatic` geometry is meant to be baked (manual step). GPU instancing enabled on shared blockout materials. |
-| 3 | **Lighting** | `World/LightingManager.cs` — baked GI + light probes + the 2 dynamic lights: the **rotating lighthouse beam** (rpm 7, `beaconSpot` Spot Light on a `beaconPivot`, range/spotAngle, **lens-scatter** extra angle + dim when `LighthouseState.LensCondition01` falls, wind in fog slightly lifts intensity, fog-visible) and the **player torch** (night-or-T + Perlin flicker, follows chest/head). Fog/grading per `DayNightCycle.NormalizedTime01 × WeatherManager.StormIntensity`: gradient, `fogDensity` lerp, ambient `SkyColor` tint (night + storm). `LightingManager` does not bake — mark blockout `isStatic` and bake lightmaps (`Window → Rendering → Lighting → Generate Lighting`). Probes sampled by the character automatically once placed. `WeatherManager` + `DayNightCycle` fog hand-off preserved (LightingManager blends on top). |
-| 4 | **Ocean** | `World/OceanController.cs` — mobile-cheap: single large Plane (auto-created as `Ocean`) at `y=-1.2`, `oceanSize 1200×1200`, one `Lit` material (or fallback tint), `enableInstancing`. **Waves** are CPU vertex sine on 121 verts (11×11 plane) — `<0.05 ms` and negligible at this scale; storm multiplies amplitude by `1 + storm01×1.8`. **Foam** via shore distance tint (cheap mask before a real water shader); `MaterialPropertyBlock` sets `_BaseColor` + `_WaveAmp`. Beam reflection is a Reflection Probe + mirror material when you add one — the script reserves the streak. CPU path is ready to be deleted when a real unlit water shader arrives. |
-| 5 | **Weather VFX** | `World/WeatherVFXManager.cs` — rain particles (`rainParticles` + `rainSplashParticles`, `rateOverTime` lerp'd by `StormIntensity`), wind-blown foliage via `Shader.SetGlobalFloat("_WindStrength", lerp(base, storm))` — any foliage shader reading that var will sway; storm adds `32°` rain slant. **Lightning**: `lightningLight` Spot/Directional flash (`flashDuration 0.12s`, `flashIntensity 2.8`) on a `min/max 6–14s` interval tightened by storm intensity, followed by delayed thunder (`thunderClip`, 0.6–1.2s). Scales to storm; quiet in Clear. |
-| 6 | **Audio** | `Audio/AudioManager.cs` + `Audio/FootstepController.cs` + `Audio/InteriorAudioZone.cs`. **Pool** 12 `AudioSource`s + 5 looping ambient sources (wind/rain/waves/interior hum/generator hum) cross-faded per weather + interior factor (`0.42×` exterior when inside). **Footsteps** via `FootstepController` on the player: Raycasts down, reads `collider.tag` → `SurfaceType` (Stone/Wood/Metal/Sand/Grass/Water), picks from per-surface banks (need clips), plays through the pool at `Walk 0.48s / Run 0.30s` cadence scaled by weight. **Generator hum** pitch/volume follow `GeneratorCondition01` + `LightOn`; subtle creak roll at `damage>0.35`. **Presence** distant unexplained clips (placeholders) at `28–55s` random intervals, quieter indoors, storm boosts chance. **Muffling** via optional `AudioLowPassFilter` on the listener (`interior 1400 Hz` / `exterior 22000 Hz`, lerped). **Pooling**: `GetPooled` steals the oldest idle source; `PlayOneShot`/`PlayAtPoint` use it. Import tip: Vorbis ~70 / `Load In Background` for ambience, `Decompress On Load` for footsteps. |
-| 7 | **Interiors** | `World/LighthouseInterior.cs` — blockout interior: wood floor, 12-step spiral stairs (each a `StairsVolume` trigger so `PlayerVisuals.Stairs01=1`), generator wall partition, lens-room frame, explicit `ZoneVolume` triggers for `GeneratorRoom`/`LensRoom`/`LighthouseInterior` (replacing the distance heuristic in `AdaptiveStormDirector`). `World/ZoneVolume.cs` (`ZoneVolume` trigger + `ZoneResolver.FromPosition` static helper with `NonAlloc` 8 + fallback heuristic). `World/StairsVolume.cs` (`TriggerStay → SetStairs01 1`). `World/InteractionDoor.cs` (`IInteractable` door, yaw lerp, `Open/Close door`). `WorldBuilder` keeps building the detailed tower (guarded). Supports `interiorPrefab` swap for a real mesh. |
-| 8 | **Clue/lore placeholders** | `World/WorldNoteData.cs` (`ScriptableObject`, `Create → LastLight → World Note`, fields: `noteNumber 1-8`, `noteTitle`, `bodyText` textarea, `paperSprite`, `locationHint`), `World/NotePickup.cs` (`IInteractable` cube, one-shot, fires `NoteCollectedEvent`, forwards to `UI/NotePresenter`, hides on collect, honours previously collected via `SaveManager.HasCollectedNote`), `World/NotePlacement.cs` (places 8 cube note pickups across the 5 zones + stairs/cave/trail; creates in-memory placeholder `WorldNoteData` if no asset assigned), `UI/NotePresenter.cs` (diegetic overlay `CanvasGroup` fade, auto-created if missing, `Show(worldNote)` → title+body+Close button). `SaveManager` extended to v3: `collectedNotesCsv` persisted, `CollectNote(n)` static helper + immediate `AutoSave` on persist. `DebugConsole` `stormlearn` already shows storm weights; notes have no console command (pickup is world-driven). |
-| 9 | **Performance pass** | Updated `PERFORMANCE.md` (Day 3). Static on-device estimate: ~160–240 fps desktop, hot path ~0 B/frame, Dusk roll ~400–900 B, draw calls ~32–48 (no imported art), 121-vert ocean. Top 5 bottlenecks: `FindFirstObjectByType` remnants (mitigated: `ResolveRefs` caches in `AudioManager`/`LightingManager`, `AdaptiveStormDirector._player` cached), CPU ocean sine (ok at 121 verts — delete when shader arrives), ground Raycast + `NonAlloc` cone (ok), NotePresenter (idle), baked-lightmap shadow cost (to bake). `WorldConfig` draw-call budget documented per tier (50/80/120). Next: run `adb dumpsys` + Unity Profiler for one full Day loop on a mid-range device. |
+| 1 | **Island layout** | `World/IslandLayout.cs` — ~1 km² via `WorldConfig` (`WorldConfig` SO, `World/WorldConfig.cs`). 5 zones: **Lighthouse / Pebble Beach-Shipwreck Cove / Pine Forest / Abandoned Cannery / Cliff+Cave** as blockout cubes/cylinders. |
+| 2 | **Mobile optimization** | `World/WorldConfig.cs` + `World/WorldQualitySettings.cs` + `World/WorldSetup.cs`. `WorldQualityTier` for Low/Med/High. `WorldQualitySettings` applies the tier from `QualitySettingsManager.Current`. |
+| 3 | **Lighting** | `World/LightingManager.cs` — baked GI + light probes + the 2 dynamic lights: the **rotating lighthouse beam** (rpm 7) and the **player torch**. |
+| 4 | **Ocean** | `World/OceanController.cs` — single large Plane at `y=-1.2`, `1200×1200`, CPU sine on 121 verts. |
+| 5 | **Weather VFX** | `World/WeatherVFXManager.cs` — rain particles, wind-blown foliage, lightning flash + thunder. |
+| 6 | **Audio** | `Audio/AudioManager.cs` + `Audio/FootstepController.cs` + `Audio/InteriorAudioZone.cs`. 12-source pool + 5 ambient loops. |
+| 7 | **Interiors** | `World/LighthouseInterior.cs` — blockout interior: wood floor, 12-step spiral stairs, generator wall partition, lens-room frame. |
+| 8 | **Clue/lore placeholders** | `World/WorldNoteData.cs` + `World/NotePickup.cs` + `World/NotePlacement.cs` + `UI/NotePresenter.cs`. 8 placeholder notes. |
+| 9 | **Performance pass** | Updated `PERFORMANCE.md` (Day 3). ~160–240 fps desktop, ~0 B/frame, draw calls ~32–48. |
 
-## Decisions (Day 3)
+### Day 4 — Lighthouse Area (pipeline + hero assets)
 
-- **No invented Art, no `Assets/Environment/` assumed** — `IslandLayout` builds from primitives at ~1 km² and `WorldBuilder` still covers the tower; both guard with `Find("Island_Ground")` / `Find("Lighthouse_Tower")` so they don't double. `ZoneReplacement[]` lets you drop in each zone's mesh without deleting the blockout code — assign an `Environment` prefab and that zone's primitives stop spawning. `Assets/Environment/` is *not* created or populated in this repo.
-- **Terrain is an opt-in, not the default** — Day 1–2 ran on a Plane; Day 3 keeps that for mobile cost. `WorldConfig.useTerrain` flips to a 129-res `TerrainData` when you want heightfield sculpting. The terrain path sets `basemapDistance`/`heightmapPixelError` per quality.
-- **Two real lights, not more** — the sun (baked + one realtime DirLight) + the beam Spot + the torch Spot. Everything else is baked or `isStatic`. This keeps `pixelLightCount` in the 1–3 range on mobile without culling tricks.
-- **Ocean is a CPU sine at 121 verts, not a shader, for now** — at 11×11 it's `<0.05 ms` and needs no custom shader, so the Day-3 repo compiles on every checkout. The `MaterialPropertyBlock` path is already there for your real unlit water shader; delete the CPU path then.
-- **Foliage wind is a global shader float** — `Shader.SetGlobalFloat("_WindStrength", …)` + `_StormIntensity` so any imported foliage shader that reads those vars instantly gets wind without per-instance work.
-- **Interior triggers are explicit volumes** — `ZoneVolume` replaces the old distance heuristic for `AdaptiveStormDirector`'s zone time. The heuristic remains as a fallback in `ZoneResolver.FromPosition` so pre-art blockout still tracks correctly.
-- **Notes are data, not scenes** — `WorldNoteData` assets hold the text, not scene GameObjects. `NotePickup` is a thin interact that forwards to `NotePresenter`; the collected set is a `HashSet<int>` persisted as `collectedNotesCsv` in v3 save. `SaveManager.CollectNote(n)` is static so `NotePickup.Awake` can check `HasCollectedNote` before any manager has loaded.
-- **PERFORMANCE.md stays a static audit until you profile on device** — same caveat as Day 2; numbers are desktop-editor estimates until `adb shell dumpsys` is actually run.
+| # | Task | What landed |
+|---|------|-------------|
+| 1 | **Blender pipeline** | `Tools/Blender/ll_pipeline.py` — reusable module: `clear_scene`, `set_scene_units` (1 unit = 1 m), PBR `make_pbr_material` with North Atlantic `PALETTE` (tower white/red, wet stone, rust, old wood, moss), `smart_uv`/`ensure_uvs`, vertex wet gradient, `make_lod` (Decimate ~50%), `export_fbx` (FBX_SCALE_ALL, bake transform, Y-up), `screenshot_trio` (front/¾/top), `validate_asset`. All asset scripts import it. `Tools/Blender/build_*.py` one per asset group. |
+| 2 | **Unity import pipeline** | `Assets/_Project/Editor/EnvironmentImportPostprocessor.cs` — `AssetPostprocessor` for `Assets/Environment/Generated/` FBX: scale 1 m, Low mesh compression, Read/Write OFF, Optimize ON, secondary UVs (generate lightmap UVs), Mikk tangents, no animation import, `isStatic` + shadow flags, GPU instancing on URP Lit, auto LODGroup from `_LOD0/_LOD1` siblings, Android ASTC on texture import. |
+| 3 | **Lighthouse tower** | `Tools/Blender/build_lighthouse.py` → `Assets/Environment/Generated/LL_Lighthouse_Tower.fbx` — 1696 tris, 45 objects: octagonal stone base, tapered white tower (24 sides, 16 m), two red bands (peeling), door + handle, 2 windows (frame+glass), balcony floor + 12-post railing + top rail torus, octagonal lens room (frame+glass), Fresnel lens (emissive Principled), copper conical roof + vent, 14-step spiral stairs + central pole. All URP Lit PBR, clean UVs, pivot at base, 1 m scale. Budget ≤ 25000 — actual 1696 (6.8%). |
+| 4 | **Keeper's house** | `Tools/Blender/build_keepers_house.py` → `LL_Keepers_House.fbx` — 208 tris: 8×6×2.8 m stone walls + foundation strip, gable roof (2 halves + ridge), chimney + cap, door + handle, 3 windows (frame+glass), porch step. Budget 8000 — actual 208. |
+| 5 | **Generator + canister** | `Tools/Blender/build_generator.py` → `LL_Generator.fbx` (368 tris: body bevelled, transverse tank + caps, exhaust, panel + gauge, 4 feet, cable) + `LL_Fuel_Canister.fbx` (240 tris: bevelled body, top, torus handle, spout + cap). |
+| 6 | **Lantern** | `Tools/Blender/build_props_a.py:build_lantern()` → `LL_Lantern.fbx` — 292 tris: hex glass cylinder, 6 brass bars, base/top cap, torus handle. |
+| 7 | **Rocks / cliff** | `build_props_a.py:build_rocks()` → `LL_Rocks_Set.fbx` (320 tris, 4 variants ico-sphere subdiv 2 + random displace + flattened bottom) + `LL_Rock_0{1..4}.fbx` (80 each) for instancing. Mixed stone/moss materials. |
+| 8 | **Driftwood** | `build_props_a.py:build_driftwood()` → `LL_Driftwood.fbx` — 184 tris: 6-cut bent cube log + stub cylinder. Wood-grey. |
+| 9 | **Fence / dock** | `Tools/Blender/build_props_b.py:build_fence_dock()` → `LL_Fence_4m.fbx` (204 tris, 4 posts + 2 rails + pickets), `LL_Dock_5m.fbx` (132 tris, 2 beams + 9 planks), `LL_Fence_Dock.fbx` (336 combined). Grey weathered wood / dark beams. |
+| 10 | **Crates / barrels** | `build_props_b.py:build_crates_barrels()` → `LL_Crates.fbx` (48 tris, closed + open crate + slats), `LL_Barrel.fbx` (696 tris, 16-side stave + 3 torus hoops + lid), `LL_Crates_Barrels.fbx` (744 combined). |
+| 11 | **Rusted props** | `build_props_b.py:build_rusted_props()` → `LL_Anchor.fbx` (200 tris: shank + ring + 2 flukes + stock), `LL_Buoy.fbx` (304 tris: sphere + cone), `LL_Chain_Pile.fbx` (600 tris: 5 torus links), `LL_Rusted_Props.fbx` (1104 combined). |
+| 12 | **Note props** | `Tools/Blender/build_note_props.py` → `LL_Note_Props.fbx` (54 tris: curled plane paper + folded note + wood board + metal clip) + `LL_Note_Paper.fbx` (18 tris, single paper plane). |
+| 13 | **Reviews** | 33 screenshots in `Docs/AssetReviews/` — 3 per asset group (front / ¾ / top). Re-render pass tightened framing on Lighthouse/House/Generator which were washed out in the first pass (white tower on pale sky, fixed to darker overcast + closer camera). |
+| 14 | **Scene assembly** | `Assets/_Project/World/LighthouseAreaAssembler.cs` — `Awake` assembles the full Lighthouse zone at origin: lighthouse (moves `LighthouseState` + `DamageableStructure` from old blockout tower), warmth volume + beacon Spot, keepers house, generator + refuel/repair colliders, 2 fuel canister pickups, lantern, rocks×2, driftwood, fence×2, dock, crates, barrel, anchor, buoy, chain pile, note pickup (+ `WorldNoteData` if present). All `isStatic` where appropriate, `StairsVolume` auto-added to stairs. |
+| 15 | **Bootstrap hook** | `Assets/_Project/Core/SceneBootstrap.cs` — `EnsureLighthouseArea()` + `TryWireGeneratedPrefabs()` (Resources fallback `Environment/Generated/<name>`). Auto-spawns the assembler on scene load. Falls back to blockout if prefabs not yet imported into Unity. |
+
+**Totals:** 23 FBX files (15 unique shipped, plus 4 individual rocks + combined sets), **~1.0 MB** on disk. Lighthouse area fully assembled ≈ **6274 tris** (2.5% of the 250K High budget). Every asset ≤ budget, 1 material per mesh, 1024-2048 texture-ready via the pipeline, pivot at base, `LL_` naming.
+
+---
+
+## Decisions (Day 4)
+
+- **Pipeline first, assets second** — `ll_pipeline.py` is the contract: every asset script imports it, so naming, UV, PBR palette and FBX settings never drift. The Unity postprocessor enforces the same guarantees on import (`isStatic`, Low compression, secondary UVs, ASTC). A new asset is one new `build_<name>.py` file — no copy-pasted Blender setup.
+- **Procedural PBR, no texture files yet** — the brief allowed procedural where Poly Haven CC0 wasn't fetched via MCP. All materials are Principled BSDF with the shared `PALETTE` (white/red tower, wet stone, rust, wood-grey, moss) — consistent North Atlantic look even without image textures. Texture atlases + image textures (Poly Haven CC0) are the next art pass; the pipeline already reserves `Assets/Environment/Textures/` and the importer sets ASTC.
+- **Lighthouse hero is bevelled primitives, not a sculpt** — at 1696 tris it reads cleanly and is 93% under the 25K hero budget. Detail comes from material contrast (white vs peeling red, stone base, copper roof, emissive lens) and silhouette (taper, balcony, octagonal lens room), not dense geo. A higher-detail sculpt pass would be desktop-only; this is the shipping mobile mesh.
+- **Rocks are ico-sphere + displace, not scan** — 80 tris each, randomized displace + flattened bottom so they sit on the ground without clipping. Good enough for the lighthouse cliff; scan rocks would be 3-5K each and need decimation.
+- **Barrel hoops are torus-heavy (192 tris each)** — the barrel is the most expensive prop at 696 tris, driven by the 3 hoop tori. Acceptable for a hero prop; LOD1 will decimate it. If over budget, merge hoops to a single cylinder strip.
+- **Assembler replaces, not duplicates, the blockout** — `LighthouseAreaAssembler` looks for `Lighthouse_Tower` (the old `WorldBuilder` cylinder) and moves its `LighthouseState` + `DamageableStructure` onto the new FBX before destroying the old. If the FBX isn't in `Resources/Generated/`, the fallback is the blockout — so the game never breaks on a fresh clone without textures.
+- **Generated/ stays outside Resources/** — the FBX files live in `Assets/Environment/Generated/` (not `Resources/`). `SceneBootstrap.TryWireGeneratedPrefabs` and `LighthouseAreaAssembler` both try `Resources.Load("Environment/Generated/<name>")` which requires the folder to be under `Resources/` OR to be wired via inspector prefab refs. For now the assembler works when you drag the FBX prefabs into its inspector; the `Resources` path is the zero-config fallback — move `Generated/` under `Resources/` if you want load-by-name without wiring.
 
 ## Known Bugs / Limitations
 
-- No imported `Environment` art yet — island is blockout cubes/cylinders + Plane. `Assets/Environment/` does not exist until you import; that's intentional.
-- `OceanController._oceanMesh` is fetched from `Plane`'s `sharedMesh`; on some Unity versions `RecalculateNormals` on a shared mesh warns — switch to `mesh` (instance) if you see a warning, or move waves to a shader.
-- `LighthouseInterior` wires `ZoneVolume` zone via reflection (`FieldInfo.SetValue`); assign a real interior prefab with serialized zones for production.
-- `AudioManager` ambient clips are all `null` until you assign: `windClip/rainClip/wavesClip/interiorHumClip/generatorHumClip` + per-surface footstep banks + `presenceClips`. Without them, ambience still ticks via volume lerps but is silent.
-- `AudioManager._cachedWeather/_cachedCycle` added in Day 3 but `AudioManager.ResolveRefs()` is called from `Update` only when needed — first-frame ambience may start at 0.00 for one frame before refs resolve (inaudible).
-- `NotePlacement` creates 8 placeholder `WorldNoteData` instances in memory if no assets are assigned — they won't appear in the Project view. Create real `World Note` assets for anything you want to edit persistently.
-- Lightmaps/baked GI not pre-baked — run `Window → Rendering → Lighting → Generate Lighting` after importing the island mesh/terrain or all blockout will be realtime lit.
-- NavMesh not baked unless you set `WorldConfig.bakeNavMesh = true` **and** install `com.unity.ai.navigation` — simple paths + `CharacterController` are cheaper, leave it off unless you add NPCs.
-- On-device profiling still not run — see `PERFORMANCE.md`. Reported FPS numbers are desktop-editor estimates.
+- No imported `Environment` art textures yet — all materials are procedural Principled BSDF. Wire Poly Haven CC0 PBR sets (albedo/normal/roughness) per material when you add `Assets/Environment/Textures/`.
+- `Generated/` FBX files are not yet under `Resources/` — `Resources.Load("Environment/Generated/<name>")` only resolves if the folder is `Assets/Resources/Environment/Generated/`. Until you move it or wire via inspector, the assembler uses inspector refs.
+- Unity `.meta` files are not in this repo (no Unity install to generate them). Open in Unity 6000.0.38f1 once — Unity will generate them and the `EnvironmentImportPostprocessor` will fix all FBX import settings automatically. Do not hand-write metas.
+- `LighthouseAreaAssembler` wires no explicit `LODGroup` — the postprocessor auto-wires `LODGroup` from `_LOD0/_LOD1` siblings, but current FBX files export as one LOD. Add `make_lod(obj, 0.5)` calls to a second pass when profiling shows overdraw; the pipeline already supports it.
+- On-device profiling still not run — Day 4 numbers below are static estimates (Blender tri count + draw-call projection). Run Unity Profiler + `adb shell dumpsys gfxinfo` on a mid-range Android device.
+- NVidia/Mesa EEVEE screenshots are preview quality — they approximate the in-game URP Lit look but are not 1:1. In-game lighting comes from `LightingManager` (baked GI + beacon + torch), not the Blender sun rig.
+- `Assets/Environment/` was empty before Day 4 — the new `Generated/` FBX files need to be committed (they are ~1 MB total, safe for Git).
 
-## Next Steps (Day 4 Plan)
+## Next Steps (Day 5 Plan)
 
-1. **Replace blockout with imported `Environment` meshes** — import the island terrain/rock/foliage/cannery/cave package into `Assets/Environment/`, create `WorldConfig` asset, wire `IslandLayout.ZoneReplacement[]`, verify scale = 1 unit ≈ 1 m.
-2. **Bake lighting & occlusion** — generate lightmaps for all `isStatic` blockout + new meshes, place Light Probes + Reflection Probes at lighthouse/forest/cannery/cave, bake Occlusion Culling (`Window → Rendering → Occlusion Culling`), verify `WorldQualitySettings` caps and draw-call budgets in Frame Debugger.
-3. **Water shader + post** — swap `OceanController` CPU waves for a mobile unlit water shader (vertex waves, foam via shore distance, beam streak as emissive), add a cheap fog-volume shader for the basin, wire the probe-based reflection.
-4. **Audio pass** — import Vorbis ambience loops + footstep banks + `presenceClips`, set import compression (`Vorbis ~70, Load In Background` for ambience; `Decompress On Load` for footsteps), tune `AudioLowPassFilter` muffling, record placeholder distant knocks/creaks.
-5. **Animator + footstep sync** — build `Elias.controller` layers (Idle↔Walk↔Run + Turn-in-place + Shiver), wire `PlayerVisuals` hashes, add `AnimationEvent Footstep` → `FootstepController` for surface-accurate timing.
-6. **Game loop + save hardening** — versioned save migrations beyond v3, backup save on write, persistent gatherable respawn timers if desired, cloud backup hook (Play Games Services).
-7. **On-device profile + Android build** — run `adb shell dumpsys gfxinfo com.company.lastlight framestats` + Unity Profiler on a mid-range device for one full Day loop, bake, verify SRP Batcher batches, set `ARM64 only`, `ASTC`, Vulkan-only, build size `< 35 MB`.
+1. **Textures + atlases** — fetch Poly Haven CC0 PBR sets (wet stone, weathered wood, rusted metal, mossy stone, paper) via MCP/browser; build a 1024 atlas for small props (canister, lantern, driftwood, crates, barrel hoops) and 2048 for the tower/house; wire into URP Lit; re-export FBX with UV2 kept; verify ASTC in Frame Debugger.
+2. **LODs** — add `make_lod(ratio=0.5)` second pass to the 5 most-used meshes (tower, house, rocks, barrel, generator); export as `_LOD0/_LOD1` pairs; verify `LODGroup` auto-wire in the postprocessor and `lodBias` per quality tier.
+3. **Lightmap + occlusion bake** — with lighthouse area static, bake lightmaps (`Window → Rendering → Lighting → Generate Lighting`) + Light Probe Group around the lighthouse + Reflection Probe for the lens; bake occlusion culling; confirm realtime light count = 2 (beacon + torch) in Frame Debugger.
+4. **Physics + footstep surfaces** — add `MeshCollider` (convex off) on tower/dock/house, `BoxCollider` on fence/crates; tag by `SurfaceType` (Stone/Wood/Metal/Sand) so `FootstepController`'s raycast maps to the right SFX bank; test CharacterController slope/stair interaction on the new spiral stairs.
+5. **Beach zone (next zone)** — repeat the Day 4 loop for Pebble Beach + Shipwreck Cove: cliff/rock variants expanded, pier remains, shipwreck hull sections, pebble ground detail; assemble and profile together with the lighthouse zone to confirm < 80 Medium draw calls.
+6. **On-device profile + build** — with two zones + baked lighting + textures + LODs, run `adb shell dumpsys gfxinfo com.company.lastlight framestats` + Unity Profiler for one full Day→Dusk→Night loop; verify SRP Batcher batches and tune texture quality per tier.
+
+---
+
+## Art Guide (Day 4) — style, budgets, naming, pipeline
+
+### Style
+
+Stylized-realistic, weathered **North Atlantic**: white-and-red lighthouse with peeling paint, wet dark stone, rusted metal, old wood, moss. Palette is restrained — `tower_white` / `tower_red` / `stone_dark|mid|wet` / `wood_old|dark|grey` / `metal_rust|iron|galv` / `moss` / `paper` / `rope` defined once in `Tools/Blender/ll_pipeline.py:PALETTE` and shared by every asset. No saturated colours; everything looks like it survived ten winters.
+
+### Mobile Budgets
+
+| Tier | Max | Actuals (Day 4) | Notes |
+|------|-----|-----------------|-------|
+| Prop | 500–3000 tris | 18–696 | Barrel 696 is highest (hoop tori) |
+| Hero prop | ≤ 8000 | — | Reserved for LensRoom vol. & shipwreck hull |
+| Lighthouse tower | ≤ 25000 | **1696** (6.8%) | Headroom for a sculpt pass later |
+| Zone assembled (today) | ≤ 250 K visible | **~6274** (2.5%) | Lighthouse zone is tiny vs budget; rest is for island + foliage + ocean |
+| Materials per mesh | **1** | 1 each | Atlas small props for draw-call wins |
+| Textures | 1024 hero / small-atlas 1024 | procedural now | Next pass: Poly Haven CC0 PBR sets + ASTC 6×6 |
+| LODs | **2** per hero (`LOD0` + `LOD1` ~50% decimated) | pipeline ready | Add via `make_lod(obj, 0.5)` when you need it |
+| Draw calls (Medium) | < 80 | est. ~28–36 for this zone | Shared URP Lit + SRP Batcher; check Frame Debugger |
+
+### Naming
+
+- Files: `LL_<Category>_<Name>.fbx` — e.g. `LL_Lighthouse_Tower.fbx`, `LL_Rock_01.fbx`, `LL_Fuel_Canister.fbx`. Generated set: `LL_Rocks_Set.fbx`, `LL_Rusted_Props.fbx`.
+- Blender objects: same prefix, `LL_Tower_White`, `LL_House_Walls`, `LL_Anchor_Shank`, `LL_Stair_00`, etc. Checked by `ll_pipeline.validate_asset()`.
+- Materials: `LL_M_<Name>` — e.g. `LL_M_TowerWhite`, `LL_M_RockStone`, `LL_M_GenRust`.
+- Screenshots: `Docs/AssetReviews/LL_<Asset>_{01_front,02_three_quarter,03_top}.png` via `ll_pipeline.screenshot_trio()`.
+
+### Scale, pivot & UVs
+
+- **1 unit = 1 metre** (set in `ll_pipeline.set_scene_units()`; FBX exports with `apply_scale` + `bake_space_transform` Y-up).
+- **Pivot at base** — asset origin sits on the ground plane (`z=0`). In Blender: build at world origin. In the scene: instantiate at `pos` and it sits correctly.
+- **UVs**: every mesh gets Smart UV on export (`ensure_uvs` → `smart_project` 66°, margin 0.02). Regenerate in Blender if you edit the mesh.
+- **Lightmap UVs**: auto-generated on Unity import by the postprocessor (`generateSecondaryUV`, 88°, margin 8/1024).
+- **Vertex color**: `paint_vertex_color_gradient` writes a height gradient into `Col` for wet/moss blending in a custom shader later.
+
+### How to add a new asset with the pipeline
+
+1. **Create** `Tools/Blender/build_<my_asset>.py`:
+   ```python
+   import sys, os
+   sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+   import ll_pipeline as ll
+   import bpy, bmesh, math
+
+   def build():
+       ll.clear_scene(); ll.set_scene_units()
+       mat = ll.make_pbr_material("LL_M_MyAsset", ll.PALETTE["wood_old"], roughness=0.85)
+       bpy.ops.object.empty_add(location=(0,0,0))
+       root = bpy.context.view_layer.objects.active; root.name = "LL_My_Asset"
+       objs = []
+       def pr(o): o.parent = root; objs.append(o); return o
+       # … build with bpy.ops.mesh.primitive_* …
+       ll.ensure_uvs(your_obj); ll.assign_material(your_obj, mat)
+       total = sum(ll.tri_count(o) for o in objs)
+       print(f"[MY_ASSET] {total} tris (budget 3000)")
+       ll.print_scene_stats()
+       ll.screenshot_trio("LL_My_Asset", look_at=(0,0,0.5))
+       for o in objs:
+           ll.select_only(o); bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+       ll.export_fbx(objs, "LL_My_Asset.fbx")
+
+   if __name__ == "__main__": build()
+   ```
+2. **Run it**: `"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" --background --python Tools/Blender/build_<my_asset>.py`
+3. **Review**: open `Docs/AssetReviews/LL_My_Asset_{01,02,03}.png` — 3 angles. Critique honestly; if the silhouette/material/scale is off, fix the script and re-run (up to 3 review loops). Honest self-critique: see the per-asset review below.
+4. **Export**: the script already calls `export_fbx` into `Assets/Environment/Generated/`. Verify tri count against the budget table; run `validate_asset()` if you want an explicit pass/fail.
+5. **Unity**: open in Unity 6000.0.38f1 — `EnvironmentImportPostprocessor` auto-fixes import settings (scale, compression, secondary UVs, `isStatic`, ASTC). Create a prefab variant if you need to add `BoxCollider`/`LODGroup`/`Interactable` without re-exporting.
+6. **Scene**: add it to `World/LighthouseAreaAssembler.cs` (or the next zone's assembler) — one `Spawn(prefab, pos, rot, name)` line. Or drag the generated prefab into the assembler's inspector slot.
+7. **Commit**: `git add Tools/Blender/build_<my_asset>.py Assets/Environment/Generated/LL_My_Asset.fbx Docs/AssetReviews/LL_My_Asset_*.png && git commit`.
+
+### Per-asset self-reviews (honest)
+
+| Asset | Verdict | Issues | Fix applied |
+|-------|---------|--------|-------------|
+| **Lighthouse tower** | Pass (with notes) | First screenshots washed out — white tower on pale sky, object too small in frame. Silhouette reads but red bands are faint in EEVEE. | Re-render with darker overcast world (0.32,0.36,0.45) + closer camera + Standard view transform. Actual in-game look will be Day 3 `LightingManager` URP Lit + baked GI — review shot is approximate. |
+| **Keeper's house** | Pass (weak) | Very low-poly read — gable is two cubes, no overhang, chimney is a bare cube. Acceptable for today's silhouette pass; needs real roof overhang + fascia detail in texture pass. | Re-render with tighter framing; note for Day 5: add 0.15 m overhang + under-roof shadow in the texture. |
+| **Generator** | Pass | Front view is very narrow — tank obscures the body. ¾ view reads much better. Good enough. | Re-rendered 3 views with tighter framing; front view is now a true front-on narrow silhouette — the ¾ is the hero shot. |
+| **Fuel canister** | Pass | Clean. Bevel + torus handle reads well. Red reads as fuel. | — |
+| **Lantern** | Pass | Brass/glass contrast is good. Handle arch is thin but correct. | — |
+| **Rocks** | Pass | Silhouette is nicely varied; displace + flattened bottom works. 80 tris each is excellent — no fixes needed. | — |
+| **Driftwood** | Pass | Bend + grainless wood-grey reads as driftwood at a glance. Could use a bark normal map — Day 5. | — |
+| **Fence / dock** | Pass (with notes) | Fence pickets are uniform height; dock beam is floating slightly in side views. | Jitter added to picket height; dock sits at y=0.22 on the ground plane. Both acceptable for blockout fencing. |
+| **Crates / barrels** | Pass (with notes) | Barrel is the spendiest prop (696). Hoop tori dominate. Reads great — barrel silhouette is instant. Crate slats are subtle. | Keep; add LOD1 for the barrel on the first sign of overdraw. |
+| **Rusted props** | Pass | Anchor/buoy/chain each read instantly. Chain links are torus-heavy (600 tris for 5) but acceptable. | — |
+| **Note props** | Pass | Curled paper plane reads; clip + board complete the set. Tiny tri count. | — |
 
 ---
 
 ## MANUAL STEPS FOR ME (Do these in Unity)
 
-### 1) Import your character into `Assets/Characters/`
+### 1) Open in Unity 6000.0.38f1 + generate metas
+
+- This repo has no `Library/` or `.meta` files (no Unity install in the pipeline environment). Open the project once in Unity Hub → Unity 6000.0.38f1 — Unity will generate `Library/` + `.meta` for every asset.
+- `Assets/_Project/Editor/EnvironmentImportPostprocessor.cs` will run automatically on the first import of every FBX in `Assets/Environment/Generated/` and fix: scale 1 m, Low compression, Read/Write OFF, secondary UVs, `isStatic`, ASTC overrides. Confirm in the Inspector that `Generate Lightmap UVs` is checked.
+
+### 2) Wire the Lighthouse area prefabs (no extra work required, but you can)
+
+- `SceneBootstrap` auto-creates a `LighthouseArea` GameObject via `EnsureLighthouseArea()` and tries `Resources.Load("Environment/Generated/<name>")` to wire all 15 prefab refs into `LighthouseAreaAssembler`.
+- **If that Resources path doesn't resolve**: `Generated/` lives at `Assets/Environment/Generated/` — `Resources.Load` needs it under `Assets/Resources/Environment/Generated/`. Either:
+  - Move `Generated/` to `Assets/Resources/Environment/Generated/` (renames the folder), **or**
+  - Drag each FBX from `Assets/Environment/Generated/` into the corresponding slot on the `LighthouseAreaAssembler` component (the `LighthouseArea` GameObject after you press Play once).
+- The assembler **replaces** the old `WorldBuilder` primitive tower (moving its `LighthouseState` + `DamageableStructure` onto the new mesh) — so fuel/lens/generator state and storm damage VFX keep working without rewiring.
+
+### 3) Import your character into `Assets/Characters/`
 
 - Drop your FBX/humanoid into `Assets/Characters/` (e.g. `Assets/Characters/Elias/Elias.fbx`).
 - Select the FBX → **Rig → Animation Type: Humanoid → Create From This Model → Apply**.
@@ -98,49 +218,27 @@
 - On the **player root** (the object with `CharacterController`), add `LastLight.Player.CharacterSetup`. Leave it enabled — it self-disables after fixing skinning on the first frame.
 - Verify: bones ≤ 56, `Skin Quality: Bone1`, no warnings.
 
-### 2) Import your environment into `Assets/Environment/`
+### 4) Lighthouse & interiors
 
-- Create `Assets/Environment/` and import your island package (terrain mesh / rock / foliage / cannery / cave) there.
-- For each zone mesh: **Mesh Compression: Low** is fine; enable **Generate Lightmap UVs**; mark the root `Static` (Contribute GI).
-- Preferred: set mesh **Read/Write: Off** (saves memory; `isStatic` batching still works).
-- **Texture compression:** in the importer set `Override for Android → ASTC 6×6` for terrain albedo, `ASTC 4×4` for close-ups. See also `ProjectSettings` → already ASTC.
-
-### 3) Wire the island in `Island.unity`
-
-- Open `Assets/Scenes/Island.unity` — keep the empty `Bootstrap` (`SceneBootstrap`). If you want to tune the island:
-  - Create `Assets/Settings/WorldConfig.asset` → `Create → LastLight → World Config`. Defaults give you ~1 km² + 5 zones. Tweak `islandSize` / `zones[]` per zone (`center`, `radius`, `height`).
-  - For each imported zone mesh: add an entry in `WorldConfig.zones` **or** drag the mesh prefab into `IslandLayout.replacements` (`zoneId` must match the zone id: `Lighthouse`, `Beach`, `Forest`, `Cannery`, `CliffCave`). When a replacement is set, that zone's blockout stops spawning.
-  - If you prefer Unity Terrain: flip `WorldConfig.useTerrain = true`, set `terrainHeight = 60`, and sculpt the `Island_Terrain` heightfield in the editor. Keep resolution at 129 unless you really need more.
-- Assign `SceneBootstrap.worldConfig` to the same `WorldConfig.asset` — both `WorldQualitySettings` and `IslandLayout` pick it up.
-
-### 4) Build the Animator Controller
-
-- Create `Assets/_Project/Player/Animator/Elias.controller`.
-- **Parameters** (exact names — `PlayerVisuals` uses these hashes):
-  - `Speed` (Float 0-1), `IsSprinting` (Bool), `IsGrounded` (Bool), `Cold01` (Float 0-1), `Fatigue` (Float 0-1), `Stumble` (Float 0-1), `Shiver` (Float 0-1), `TurnYaw` (Float -1..1), `Stairs01` (Float 0-1), `Interact` (Trigger).
-- **Base Layer**: `Idle` ↔ `Walk` ↔ `Run` 2D blend tree driven by `Speed` (0, 0.35, 1.0). `TurnYawn` 1D blend when `Speed < 0.12`. Gate `Sprint` via `IsSprinting`.
-- **UpperBody additive** (weight by `Fatigue`) + **Shiver additive** (weight by `Shiver`).
-- Assign the character `Animator` to this controller; `PlayerVisuals` drives all params automatically.
-
-### 5) Lighthouse & interiors
-
-- On the tower root: confirm `DamageableStructure` is present. Assign `crackDecals` (array of decals/quads), `waterLeakVFX`, `lensCrackVFX`, `interiorLight`.
-- `LighthouseInterior` spawns a blockout interior (floor, 12 spiral stairs each with `StairsVolume`, generator wall, lens frame, and 3 `ZoneVolume` triggers). If you have a real `interiorPrefab`, assign it to `LighthouseInterior.interiorPrefab` — the blockout stops.
-- Add a `BoxCollider(isTrigger)` + `WarmthVolume` child sized to the tower interior.
+- Before the LighthouseArea assembler exists, `LighthouseInterior` spawns a blockout interior (floor, 12 spiral stairs each with `StairsVolume`, generator wall, lens frame, and 3 `ZoneVolume` triggers). After the new tower is placed, the new interior stairs (`LL_Stair_00..13`) already have `StairsVolume` auto-added by the assembler — no manual step.
 - **Boardable windows:** child `Window_Wx` (`BoxCollider isTrigger` + `BoardWindowInteractable`, `windowId` `W1`/`W2`, `boardsVisual` board mesh disabled).
-- **Generator / lens:** `RefuelInteractable` + `RepairGeneratorInteractable` near the console; `RepairLensInteractable` in the lens room. Pickups: `PickupInteractable`.
+- **Generator / lens:** `RefuelInteractable` + `RepairGeneratorInteractable` are auto-added to the generator prefab area; `RepairLensInteractable` is still on the lens-room trigger from the blockout — add one manually inside `LL_LensRoom` if you place the lens room near the tower top.
 - **Doors:** add `InteractionDoor` to any door pivot; wire `doorPivot` to the hinge transform.
-- **Warmth + audio:** add an `Audio/InteriorAudioZone` (trigger box) sized to the interior so ambience muffles when you're inside.
+- **Warmth + audio:** the assembler adds a `WarmthVolume` box (6×16×6 m centered at y=8 inside the tower) so winter survival keeps working. Add an `Audio/InteriorAudioZone` trigger box sized to the interior for muffling.
 
-### 6) Lighthouse beam + torch
+### 5) Lighthouse beam + torch
 
-- `LightingManager` auto-spawns as `Lighting` via `SceneBootstrap`. It expects a `Light` on the same GO or nearby — wire `beaconSpot` (the tower's Spot Light) + `beaconPivot` (its parent Transform) + `torchLight` (a child Spot on the player, range 14). Defaults (rpm 7, range 280, spot 42°) are tuned for the blockout; bump `beaconRange` after you size the real island.
-- `WeatherVFXManager` (`WeatherVFX`) — assign `rainParticles`, `rainSplashParticles`, `lightningLight` (Distance or Directional), and `thunderClip` for the delayed thunder.
+- `LightingManager` auto-spawns as `Lighting` via `SceneBootstrap`. `LighthouseAreaAssembler.EnsureBeaconLight()` finds `LL_Lens` inside the new tower and adds a Spot Light (38°, range 280) + wires it to `LighthouseState.beaconLight` so fuel/lens damage already drives it. No manual wiring needed.
+- `WeatherVFXManager` (`WeatherVFX`) — assign `rainParticles`, `rainSplashParticles`, `lightningLight`, and `thunderClip` if you haven't yet.
+
+### 6) Textures (next pass — prep)
+
+- `Tools/Blender/ll_pipeline.py:PALETTE` is the source of truth for colours. For Day 5: fetch Poly Haven CC0 PBR sets into `Assets/Environment/Textures/` (wet stone, weathered wood, rust, moss, paper), build one 1024 atlas for small props (canister, lantern, crates, driftwood) and 2048 for tower/house, wire into URP Lit materials, and re-export — UVs are already clean and ready. The importer already forces ASTC 6×6 on Android.
+- Create a URP Lit material per distinct visual (e.g. `Mat_TowerWhite`, `Mat_TowerRed`, `Mat_StoneDark`, `Mat_WoodGrey`, `Mat_MetalRust`, `Mat_Glass`) and assign via the importer's material remap.
 
 ### 7) Ocean & weather
 
-- `OceanController` (`Ocean`) auto-spawns the 11×11 Plane at `y -1.2`, `1200×1200` m. Assign `oceanMaterial` when you have a mobile unlit water material — otherwise the fallback tint still reads. Bump `oceanSize` to match `WorldConfig.islandSize`.
-- For foliage wind: any shader that reads `_WindStrength` / `_StormIntensity` globals will respond to `WeatherVFXManager.UpdateFoliageWind`. Your imported foliage needs such a shader (or add one).
+- `OceanController` (`Ocean`) auto-spawns the 11×11 Plane at `y -1.2`, `1200×1200` m. Assign `oceanMaterial` when you have a mobile unlit water material — otherwise the fallback tint still reads.
 
 ### 8) Audio
 
@@ -155,23 +253,31 @@
 ### 9) Lore notes (8)
 
 - Create 8 assets in `Assets/World/Notes/` (or any folder): `Create → LastLight → World Note`. For each: set `noteNumber 1..8`, `noteTitle`, `bodyText` (the keeper's story — placeholder text is fine for now), optional `paperSprite`/`locationHint`.
-- `NotePlacement` auto-places 8 cubes at fixed spots across the 5 zones (+ stairs/cave). If you created real notes, drag them into `NotePlacement.notes` (1-to-1 with `positions`). If left empty, it makes readable in-memory placeholders. Pickups are `IInteractable` — the context button shows `Read: <title>`; `NotePresenter` shows the text and persists `HasCollectedNote` via the save (v3).
-- `SaveManager` v3 now has `collectedNotesCsv` — after collecting, `CollectNote(n)` triggers an immediate `AutoSave`.
+- `NotePlacement` auto-places 8 cubes at fixed spots across the 5 zones (+ stairs/cave). `NotePickup` is now also wired for the lighthouse log (`LL_Note_Paper`): `LighthouseAreaAssembler` spawns `Note_KeepersLog` inside the tower and adds `NotePickup` + `WorldNoteData` if any exist in `Resources/`.
 
-### 10) Packages & baking
+### 10) Packages & baking (when you add textures / meshes)
 
 - **Packages** (already in `Packages/manifest.json`): URP 17, Input System, Cinemachine 3.1, Animation Rigging 1.3, TextMeshPro + `com.unity.ai.navigation` if you want `WorldConfig.bakeNavMesh`.
 - **Lightmaps:** mark imported meshes `Static → Contribute GI`, set a `Lightmap Parameters` asset low-res for mobile, then `Window → Rendering → Lighting → Generate Lighting`. Confirm `Realtime` count drops in Frame Debugger → `Lighting` pass. For probes: place Light Probe Group + Reflection Probe per zone.
-- **Occlusion:** `Window → Rendering → Occlusion Culling → Bake` once the 5 zones are final. `WorldSetup` already gates `Camera.useOcclusionCulling` on Medium/High.
-- **SRP Batcher:** verify the Frame Debugger reports `SRP Batcher: N batches` with the rock blockout before you swap to real meshes — shared `Lit` material is the trick.
+- **Occlusion:** `Window → Rendering → Occlusion Culling → Bake` once the zones are final. `WorldSetup` already gates `Camera.useOcclusionCulling` on Medium/High.
+- **SRP Batcher:** verify the Frame Debugger reports `SRP Batcher: N batches` with the new FBX meshes — shared `Lit` materials batch; the lighthouse area alone should be ~18–28 batches before you add the other zones.
 
-### 11) Android build settings
+### 11) Build the Animator Controller
+
+- Create `Assets/_Project/Player/Animator/Elias.controller`.
+- **Parameters** (exact names — `PlayerVisuals` uses these hashes):
+  - `Speed` (Float 0-1), `IsSprinting` (Bool), `IsGrounded` (Bool), `Cold01` (Float 0-1), `Fatigue` (Float 0-1), `Stumble` (Float 0-1), `Shiver` (Float 0-1), `TurnYaw` (Float -1..1), `Stairs01` (Float 0-1), `Interact` (Trigger).
+- **Base Layer**: `Idle` ↔ `Walk` ↔ `Run` 2D blend tree driven by `Speed` (0, 0.35, 1.0). `TurnYaw` 1D blend when `Speed < 0.12`. Gate `Sprint` via `IsSprinting`.
+- **UpperBody additive** (weight by `Fatigue`) + **Shiver additive** (weight by `Shiver`).
+- Assign the character `Animator` to this controller; `PlayerVisuals` drives all params automatically.
+
+### 12) Android build settings
 
 - `File → Build Settings → Android`, `Texture Compression: ASTC`, `Graphics API: Vulkan` (remove OpenGLES), `Minimum API: 24`, `Target API: 34`, `Scripting Backend: IL2CPP`, `Target: ARM64 only`.
 - `Player Settings → Resolution → Optimized Frame Pacing: On`, `VSync: Off` (`QualitySettingsManager` drives `Application.targetFrameRate`).
 - `ProjectSettings/QualitySettings.asset` already has Low (20 m shadows, lodBias 0.6, 30 fps) / Medium (50 m / 1.0 / 60 fps) / High (80 m / 1.2 / 60 fps) — `WorldConfig` mirrors those as draw-call budgets.
 
-### 12) Test without a device
+### 13) Test without a device
 
 - **Keyboard/mouse** (editor): `WASD` + mouse drag, `Shift` sprint, `E/Space` interact. Touch joystick is left-drag, camera is right-drag. `` ` `` console, `~` overlay.
 - **Console commands** (try these):
@@ -185,7 +291,7 @@
   fuel 30 / damage 0.1 / heal / wreck / save / load / deletesave
   quality low / fps
   ```
-- After you add notes: walk to any `Note_0x` cube → `Read: …` prompt → `E` → note overlay appears; `Close` or `Esc`.
+- After you add notes: walk to any `Note_0x` cube → `Read: …` prompt → `E` → note overlay appears; `Close` or `Esc`. The lighthouse log is now at `Note_KeepersLog` inside the tower.
 
 ---
 
