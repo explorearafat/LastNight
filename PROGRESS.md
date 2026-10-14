@@ -1,9 +1,9 @@
 # Last Light — PROGRESS.md
 
-## Status: Day 4 — Lighthouse Area Art Pipeline + Hero Assets (Done)
+## Status: Day 5 — Archipelago, Brick Ruins, Boat & Shark Waters — Checkpoint 1 (Done)
 
 > Game: realistic stylized lighthouse-survival, Android, Unity 6 URP, no combat.
-> Player: Elias, third-person, minimal HUD, touch + editor-friendly.
+> Lighthouse islet ↔ shark channel (260 m) ↔ main island (ruins). Elias ferries fuel by boat.
 > Pillar: it must feel like you are physically living this.
 
 ---
@@ -96,14 +96,48 @@
 - NVidia/Mesa EEVEE screenshots are preview quality — they approximate the in-game URP Lit look but are not 1:1. In-game lighting comes from `LightingManager` (baked GI + beacon + torch), not the Blender sun rig.
 - `Assets/Environment/` was empty before Day 4 — the new `Generated/` FBX files need to be committed (they are ~1 MB total, safe for Git).
 
-## Next Steps (Day 5 Plan)
+### Day 5 — Archipelago, Brick Ruins, Boat & Shark Waters — Checkpoint 1 (tasks 1-8)
+
+| # | Task | What landed |
+|---|------|-------------|
+| 1 | **Modular brick kit** | `Tools/Blender/build_brickkit.py` → `Assets/Environment/Generated/LL_BrickKit.fbx` — **476 tris, 37 meshes** (wall straight/corner/broken/arch/window/door, floor, stairs×4, beam, pillar, rubble×9, low wall) + 2 damage variants on straight+broken. `LL_BrickKit` grid with moss/ao vertex colors; reused by `CastleAssembler` + `BunkerAssembler`. Day 4 review loop (3 angles, self-crit). |
+| 2 | **Moss / wetness shader** | `Assets/_Project/World/MossWetnessDriver.cs` — global shader params `_LL_Wetness01`/`_LL_Storm01`/`_LL_MossStrength`/`_LL_AlgaeHeight` driven from `WeatherManager.StormIntensity`; roughness scales with wetness. `PaintVertexMoss(root)` bakes per-vertex `Color(G=moss upward, B=algae near waterline, R=ao)` for any brick kit mesh without custom HLSL. |
+| 3 | **Nature kit** | `Tools/Blender/build_naturekit.py` → `LL_NatureKit.fbx` — **862 tris, 25 meshes**: rocks 6 (3 subdiv1 20 tris + 3 subdiv2 80), cliffs 2 (12 each), pine tall (7 m, 3 cones) + pine short (4.5 m), scrub icosphere 80, grass×2 + fern×2 cards (2 each), driftwood 12, shells×3 (80 each), seaweed card 2. GPU-instancing-ready, `WorldScatter` spawns them procedurally outside the channel/islet. |
+| 4 | **Terrain / archipelago layout** | `Assets/_Project/World/WorldConfig.cs` + `IslandLayout.cs` rewritten: **lighthouse islet** `(-520,0)` r75 + channel `260 m` + **main island `750 m`** with 8 zones (`LighthouseIslet`, `Beach`, `Forest`, `Castle`, `Bunker`, `CanneryPier`, `MountainCave`, `Ruins`). `Islet_Ground` plane + `IsletPositionPatch` moves the Day 4 `LighthouseArea_Root` onto the islet. `WorldScatter` + `CastleAssembler` + `BunkerAssembler` driven by kit parts; `WorldBuilder` gatherables now excluded from the islet so resources live only on the main island. |
+| 5 | **World scatter + ruins** | `WorldScatter.cs` (90 pines / 40 scrub / 24 rocks / 120 grass clumps, avoiding islet + channel + hero interiors), `CastleAssembler.cs` (14 kit walls + 4 pillars + 2 rubble — ruined rectangle with arch gate + window/door), `BunkerAssembler.cs` (9 kit walls + flood plane at y=0.12). Both `PaintVertexMoss` + `isStatic` batched. Wired in `SceneBootstrap.EnsureWorld()`. |
+| 6 | **Water** | `World/OceanController.cs` — expanded plane `1400×1400` at `y=-0.9`; **channel rect `(-500,-60)→(-180,60)` tints `channelColor` (0.02,0.07,0.16)**, storm darkens + `1.6×` wave amp in channel; vertex-color + MPB `_BaseColor` path; `IsInsideChannel(xz)` exposed for boat/shark. Shore foam via `ShoreDistance01`. |
+| 7 | **Boat + docks** | `Tools/Blender/build_boat.py` → `LL_Boat.fbx` **540 tris** (hull with bow taper, floor, 2 seats, transom, motor bracket+shaft, 4 torus oar locks, oar+cylinder+blade). `Systems/BoatController.cs` — fake 3-4 point buoyancy (bob `0.18 m @0.85 Hz`, storm-scaled), joystick/WASD steering (`thrust 7`, `maxSpeed 6.5`), drag models, ~75 s crossing in calm; `BoatDockManager.cs` — docks `Main(-210,-6)` + `Islet(-445,-6)`, blockout if no FBX; board with `E/Space` trigger, seats `CharacterController` disabled while aboard, wake particles, storm/shark damage → `BoatDamagedEvent`/`BoatCrossingEvent` + `PlayerPrefs` route counts for AdaptiveStorm, permanent sink (`condition→0`). |
+| 8 | **Shark proxy** | `Tools/Blender/build_shark.py` → `LL_Shark.fbx` **24 tris** (fin prism + torpedo body). Cheapest possible before AI (tasks 9-11 come after the checkpoint). |
+
+**Totals this checkpoint:** 4 new FBX (**~1902 tris**: 476+862+540+24), 27 FBX total on disk; **~8176 tris** lighthouse zone (~6274 Day 4) + brick/boat/shark set when instantiated, still `~3.3%` of High.
+
+## Decisions (Day 5 — Checkpoint 1)
+
+- **Islet is an offset, not a re-export** — Day 4 `LL_Lighthouse_Tower` stays at origin in FBX; `IsletPositionPatch` moves `LighthouseArea_Root` (+ `Islet_Ground`) to `(-520,0)` at runtime so no Blender rework and no duplicate tower.
+- **Brick kit is one FBX, many parts** — 37 meshes in a single `LL_BrickKit.fbx` arranged as a kit grid. Castle/Bunker look up kit parts by child name (`LL_Brick_Wall_Straight` etc.) and `Instantiate` them. Damage variants are vertex-jitter dupes, not new meshes.
+- **Nature kit is also a kit FBX** — same pattern: pines/scrub/grass/rock/shell in one file, scattered procedurally. No per-biome FBX sprawl before profiling.
+- **Channel is a logical rect, not a mesh cut** — `OceanController.IsInsideChannel` + `channelMin/Max` drive both the dark tint and the scatter exclusion, so sharks/boat can share the same rect without adding ocean geometry.
+- **Boat is fake buoyancy on purpose** — 1D bob + drag + `maxSpeed` clamp is mobile-cheap and deterministic; a real `Rigidbody`/`BoatPhysics` buoyancy solve would burn CPU and behave badly on a phone without water colliders.
+
+## Known Bugs / Limitations (Checkpoint 1)
+
+- No URP ShaderGraph files — `MossWetnessDriver` drives globals (`_LL_Wetness01` etc.) but no graph reads them yet; moss/algae is only in baked vertex colors from `PaintVertexMoss`. Wire the graphs in Day 5 tasks 2 continuation.
+- Shark is geometry-only (24 tris) — AI (steering, fin, circling, attack, flare repel, AdaptiveStorm link) lands in tasks 9-11 after the checkpoint.
+- Boat audio/particles are field slots waiting on clips — `creakClip`/`wakeParticles`/`splashParticles` are null until you assign audio/particles; the controllers still run silently.
+- `WorldScatter` uses `y=0` ground (no raycast) — pines/rocks sit at plane height; terrain sculpt will offset them later via raycast.
+
+## Next Steps (Day 5 Checkpoint 1 → Checkpoint 2 / Day 6 Plan)
 
 1. **Textures + atlases** — fetch Poly Haven CC0 PBR sets (wet stone, weathered wood, rusted metal, mossy stone, paper) via MCP/browser; build a 1024 atlas for small props (canister, lantern, driftwood, crates, barrel hoops) and 2048 for the tower/house; wire into URP Lit; re-export FBX with UV2 kept; verify ASTC in Frame Debugger.
 2. **LODs** — add `make_lod(ratio=0.5)` second pass to the 5 most-used meshes (tower, house, rocks, barrel, generator); export as `_LOD0/_LOD1` pairs; verify `LODGroup` auto-wire in the postprocessor and `lodBias` per quality tier.
 3. **Lightmap + occlusion bake** — with lighthouse area static, bake lightmaps (`Window → Rendering → Lighting → Generate Lighting`) + Light Probe Group around the lighthouse + Reflection Probe for the lens; bake occlusion culling; confirm realtime light count = 2 (beacon + torch) in Frame Debugger.
 4. **Physics + footstep surfaces** — add `MeshCollider` (convex off) on tower/dock/house, `BoxCollider` on fence/crates; tag by `SurfaceType` (Stone/Wood/Metal/Sand) so `FootstepController`'s raycast maps to the right SFX bank; test CharacterController slope/stair interaction on the new spiral stairs.
-5. **Beach zone (next zone)** — repeat the Day 4 loop for Pebble Beach + Shipwreck Cove: cliff/rock variants expanded, pier remains, shipwreck hull sections, pebble ground detail; assemble and profile together with the lighthouse zone to confirm < 80 Medium draw calls.
-6. **On-device profile + build** — with two zones + baked lighting + textures + LODs, run `adb shell dumpsys gfxinfo com.company.lastlight framestats` + Unity Profiler for one full Day→Dusk→Night loop; verify SRP Batcher batches and tune texture quality per tier.
+5. **Day 5 continuation (tasks 9-14)** — shark AI (3-5 ScriptableObject-driven, fin visibility, circling/stalking, splash/blood attract, flare repel, night+storm scaling), AdaptiveStorm learns the player's preferred channel route, boat-inventory ferry before dusk, lore slots + hint system, safety/mercy tuning, full-island profile.
+6. **On-device profile + build** — with archipelago + baked lighting + textures + LODs, run `adb shell dumpsys gfxinfo com.company.lastlight framestats` + Unity Profiler for one full Day→Dusk→Night loop; verify SRP Batcher batches and tune texture quality per tier.
+3. **Lightmap + occlusion bake** — with archipelago static, bake lightmaps (`Window → Rendering → Lighting → Generate Lighting`) + Light Probe Group around the islet + main island hero spots; bake occlusion culling; confirm realtime light count = 2 (beacon + torch) in Frame Debugger.
+4. **Physics + footstep surfaces** — add `MeshCollider` (convex off) on tower/dock/house/brick kit, `BoxCollider` on fence/crates; tag by `SurfaceType` (Stone/Wood/Metal/Sand) so `FootstepController`'s raycast maps to the right SFX bank.
+5. **Day 5 continuation (tasks 9-14)** — shark AI (3-5 ScriptableObject-driven, fin visibility, circling/stalking, splash/blood attract, flare repel, night+storm scaling), AdaptiveStorm learns the player's preferred channel route, boat-inventory ferry before dusk, lore slots + hint system, safety/mercy tuning, full-island profile.
+6. **On-device profile + build** — with archipelago + baked lighting + textures + LODs, run `adb shell dumpsys gfxinfo com.company.lastlight framestats` + Unity Profiler for one full Day→Dusk→Night loop; verify SRP Batcher batches and tune texture quality per tier.
 
 ---
 
@@ -236,9 +270,18 @@ Stylized-realistic, weathered **North Atlantic**: white-and-red lighthouse with 
 - `Tools/Blender/ll_pipeline.py:PALETTE` is the source of truth for colours. For Day 5: fetch Poly Haven CC0 PBR sets into `Assets/Environment/Textures/` (wet stone, weathered wood, rust, moss, paper), build one 1024 atlas for small props (canister, lantern, crates, driftwood) and 2048 for tower/house, wire into URP Lit materials, and re-export — UVs are already clean and ready. The importer already forces ASTC 6×6 on Android.
 - Create a URP Lit material per distinct visual (e.g. `Mat_TowerWhite`, `Mat_TowerRed`, `Mat_StoneDark`, `Mat_WoodGrey`, `Mat_MetalRust`, `Mat_Glass`) and assign via the importer's material remap.
 
-### 7) Ocean & weather
+### 7) Ocean & weather (now archipelago)
 
-- `OceanController` (`Ocean`) auto-spawns the 11×11 Plane at `y -1.2`, `1200×1200` m. Assign `oceanMaterial` when you have a mobile unlit water material — otherwise the fallback tint still reads.
+- `OceanController` (`Ocean`) auto-spawns at `y -0.9`, `1400×1400` m. The **channel `(-500,-60)→(-180,60)`** darkens with storm (`IsInsideChannel`) and has `1.6×` wave amp. `MossWetnessDriver` supplies `_LL_Wetness01` etc. for wetness. For foliage wind: any shader reading `_WindStrength`/`_StormIntensity` globals will sway.
+- `IsletPositionPatch` moves the Day 4 `LighthouseArea_Root` to `(-520,0)` — the lighthouse islet no longer needs manual dragging.
+
+### 7b) Archipelago + boat (Day 5 new)
+
+- **Lighthouse Islet** is at `WorldConfig.isletCenter (-520,0)` r75. `IslandLayout` spawns `Islet_Ground` + `IsletPositionPatch` moves the existing tower there. Resources (gatherables) are **main-island-only** (`WorldBuilder` excludes the islet) so the boat matters before dusk.
+- **Brick kit** — `LL_BrickKit.fbx` (476 tris, 37 parts: wall straight/corner/broken/arch/window/door, floor, stairs×4, beam, pillar, rubble×9, low wall). `CastleAssembler` + `BunkerAssembler` pull parts by child name and `PaintVertexMoss`. Both are `isStatic`.
+- **Nature** — `LL_NatureKit.fbx` (862 tris: rocks 6, cliffs 2, pine tall+short, scrub, grass/fern cards, driftwood, shells, seaweed). `WorldScatter` (90 pines/40 scrub/24 rocks/120 grass, avoiding islet+channel, `enableInstancing`).
+- **Boat** — `LL_Boat.fbx` (540 tris). `BoatDockManager` spawns `Dock_MainIsland (-210,-6)` + `Dock_Islet (-445,-6)` + `Boat (-215,-0.9,-6)`. `BoatController` fake buoyancy (`bob 0.18m/0.85Hz`, storm-scaled), **joystick/WASD steering** (`thrust 7`, `maxSpeed 6.5`, **~75 s calm crossing**). Board: get within `2.2 m`, `E`/`Space`; while aboard `CharacterController` is disabled and player is parented to `PlayerSeat`. Unboard with `E`/`Space` (exit to starboard). Storm nurtures `condition` at `0.006/s`; shark hit costs `0.14`; sink is permanent (`y→-2.5`, `enabled=false`, mercy at dawn). Wake particles + creak are optional slots. `BoatCrossingEvent`/`BoatDamagedEvent` + `PlayerPrefs` route counts feed the future AdaptiveStorm link (task 10).
+- **Shark proxy** — `LL_Shark.fbx` (24 tris: fin + body). Geometry only at Checkpoint 1; full AI (steering, circling, attack, flare repel, route learning) is tasks 9-11 after you say *continue*.
 
 ### 8) Audio
 

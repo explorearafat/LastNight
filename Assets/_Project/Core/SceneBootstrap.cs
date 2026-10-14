@@ -54,6 +54,7 @@ namespace LastLight.Core
 
             EnsureWorld();
             EnsureLighthouseArea();
+            EnsureBoatAndDocks();
             EnsurePlayer();
         }
 
@@ -69,8 +70,18 @@ namespace LastLight.Core
             if (FindFirstObjectByType<LastLight.World.LighthouseAreaAssembler>() != null) return;
             var la = new GameObject("LighthouseArea");
             la.AddComponent<LastLight.World.LighthouseAreaAssembler>();
+            la.AddComponent<LastLight.World.IsletPositionPatch>();
+            la.AddComponent<LastLight.World.MossWetnessDriver>();
             // Try to wire generated prefabs automatically (Resources fallback inside the assembler also works)
             TryWireGeneratedPrefabs(la.GetComponent<LastLight.World.LighthouseAreaAssembler>());
+        }
+
+        void EnsureBoatAndDocks()
+        {
+            if (FindFirstObjectByType<LastLight.Systems.BoatController>() != null) return;
+            if (FindFirstObjectByType<LastLight.Systems.BoatDockManager>() != null) return;
+            var go = new GameObject("BoatDockManager");
+            go.AddComponent<LastLight.Systems.BoatDockManager>();
         }
 
         static void TryWireGeneratedPrefabs(LastLight.World.LighthouseAreaAssembler a)
@@ -125,6 +136,22 @@ namespace LastLight.Core
                 // WorldBuilder creates one on the tower; this is a fallback only
                 var go = new GameObject("DamageableStructure");
                 go.AddComponent<LastLight.World.DamageableStructure>();
+            }
+            // Day 5: archipelago assemblers — no-ops if already present
+            if (FindFirstObjectByType<LastLight.World.WorldScatter>() == null)
+            {
+                var go = new GameObject("WorldScatter");
+                go.AddComponent<LastLight.World.WorldScatter>();
+            }
+            if (FindFirstObjectByType<LastLight.World.CastleAssembler>() == null)
+            {
+                var go = new GameObject("Castle");
+                go.AddComponent<LastLight.World.CastleAssembler>();
+            }
+            if (FindFirstObjectByType<LastLight.World.BunkerAssembler>() == null)
+            {
+                var go = new GameObject("Bunker");
+                go.AddComponent<LastLight.World.BunkerAssembler>();
             }
         }
 

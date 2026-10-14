@@ -122,16 +122,23 @@ namespace LastLight.World
                 fi?.SetValue(board, boardsVisual);
             }
 
-            // Gatherable spawners scattered around the island
+            // Gatherable spawners — Day 5: only on main island (not islet), so the boat crossing matters
             var gatherRoot = new GameObject("Gatherables");
             var types = new[] { Core.ItemType.Wood, Core.ItemType.Food, Core.ItemType.Fuel, Core.ItemType.RepairParts };
+            var cfg = FindFirstObjectByType<WorldConfig>();
+            Vector2 isletCenter = cfg != null ? cfg.isletCenter : new Vector2(-520f, 0f);
+            float isletR = cfg != null ? cfg.isletRadius + 12f : 85f;
             for (int i = 0; i < gatherableCount; i++)
             {
                 Core.ItemType t = types[i % types.Length];
-                float rx = Random.Range(-islandSize.x * 0.4f, islandSize.x * 0.4f);
-                float rz = Random.Range(-islandSize.y * 0.4f, islandSize.y * 0.4f);
-                // Keep clear of the tower
-                if (new Vector2(rx, rz).magnitude < 5f) { rx += 8f; }
+                float rx, rz;
+                int tries = 0;
+                do
+                {
+                    rx = Random.Range(-islandSize.x * 0.4f, islandSize.x * 0.4f);
+                    rz = Random.Range(-islandSize.y * 0.4f, islandSize.y * 0.4f);
+                    tries++;
+                } while (new Vector2(rx, rz).magnitude < 5f || Vector2.Distance(new Vector2(rx, rz), isletCenter) < isletR);
                 GatherableSpawner.CreatePlaceholder(t, new Vector3(rx, 0.25f, rz), gatherRoot.transform);
             }
 

@@ -45,10 +45,13 @@ A relentless storm has cut the island off from the world. The lighthouse is the 
 | **Day ↔ Night Cycle** | Dawn → Day → Dusk → Night with smooth sun/ambient/fog transitions and phase events |
 | **Dynamic Weather** | Clear → Rain → Fog → Storm with intensity 0–1 blending wind, rain, fog, movement penalty & audio |
 | **Weather VFX** | GPU rain particles, wind-blown foliage, lightning flashes with delayed thunder |
-| **~1 km² Island** | 5 zones — Lighthouse, Pebble Beach & Shipwreck Cove, Pine Forest, Abandoned Cannery, Cliff & Cave — playable on blockout before any art import |
-| **Lighthouse Zone (Dressed)** | 16 m tower + keepers house, generator + fuel, lantern, cliff rocks, driftwood, fence/dock, crates/barrels, anchor/buoy/chain, keepers-log — **~6.3K tris, 2.5% of High budget** |
+| **~1 km² Archipelago** | **Lighthouse islet (r75) + 260 m shark channel + main island (750 m)** — beach + forest + **castle (brick) + bunker (flooded) + cannery + mountain/cave + ruins**. Blockout; brick kit + nature kit dress the hero spots |
+| **Lighthouse Islet (Dressed)** | Same 16 m tower + keepers house etc. as Day 4, **now on its own islet** `(-520,0)` — base that must be kept lit, ferried to by boat — **~6.3K tris** |
+| **Boat + Shark Channel** | Rowboat/motorboat — fake buoyancy, joystick steering, **~75 s calm crossing**, board/unboard, wake + storm/shark damage, permanent sink + mercy. Channel water looks dark & threatening, storm-scaled |
+| **Brick Ruins** | **Modular brick kit** (37 meshes, 476 tris — wall/corner/broken/arch/window/door, floor, stairs, beam, pillar, rubble) → **collapsed castle** + **half-flooded bunker** (moss/algae vertex colors). Old, broken, overgrown — `MossWetnessDriver` |
+| **Procedural Scatter** | Pine/scrub + grass/fern cards + rocks/cliffs + driftwood/shells — zone+slope driven, avoid islet+channel, GPU instanced |
 | **Blender→Unity Pipeline** | Reusable `Tools/Blender/ll_pipeline.py` + Unity `EnvironmentImportPostprocessor` — one `build_<asset>.py` per asset, 3-angle review screenshots, 1 material/mesh, 2 LODs, ASTC |
-| **Ocean** | 1200×1200 m plane with CPU sine waves (121 verts, <0.05 ms) → ready to swap for a water shader |
+| **Ocean** | Expanded **1400×1400** plane, **channel darkens with storm**, shore foam, vertex sine — `IsInsideChannel` shared by boat/shark |
 | **Baked Lighting** | Baked GI + light probes; only 2 dynamic lights — rotating beacon (7 rpm, lens-scatter) + player torch |
 | **Lighthouse Interiors** | Spiral stairs (14 + `StairsVolume`), generator room, lens room (emissive Fresnel), boardable windows, openable doors |
 | **Lore Notes** | 8 diegetic notes (`WorldNoteData` SO) across the island — `NotePickup` → `NotePresenter` overlay, persisted in save; keepers-log in the lighthouse zone |
@@ -131,7 +134,11 @@ Tools/Blender/
 ├── build_generator.py         # LL_Generator (368) + LL_Fuel_Canister (240)
 ├── build_props_a.py           # LL_Lantern (292) + LL_Rocks_Set (320, 4 var.) + LL_Driftwood (184)
 ├── build_props_b.py           # LL_Fence/Dock + LL_Crates/Barrels + LL_Rusted_Props (anchor/buoy/chain)
-└── build_note_props.py        # LL_Note_Props (54) + LL_Note_Paper (18)
+├── build_note_props.py        # LL_Note_Props (54) + LL_Note_Paper (18)
+├── build_brickkit.py          # LL_BrickKit (476 tris, 37 meshes — Day 5 archipelago)
+├── build_naturekit.py         # LL_NatureKit (862 tris, rocks/cliffs/pines/scrub/grass — Day 5)
+├── build_boat.py              # LL_Boat (540 tris — Day 5)
+└── build_shark.py             # LL_Shark (24 tris proxy — Day 5)
 
 Assets/_Project/
 ├── Editor/        # EnvironmentImportPostprocessor (auto import settings for Generated/)
@@ -142,20 +149,24 @@ Assets/_Project/
 ├── World/         # DayNightCycle, WeatherManager, DayLoopController,
 │                  # AdaptiveStormDirector, IslandLayout, WorldConfig,
 │                  # WorldQualitySettings, WorldSetup, LightingManager,
-│                  # OceanController, WeatherVFXManager, DamageableStructure,
-│                  # GatherableSpawner, LighthouseInterior, LighthouseAreaAssembler,
+│                  # OceanController (channel-aware), IsletPositionPatch,
+│                  # MossWetnessDriver, WorldScatter, CastleAssembler,
+│                  # BunkerAssembler, DamageableStructure,
+│                  # GatherableSpawner (main-island-only), LighthouseInterior,
+│                  # LighthouseAreaAssembler (now on islet),
 │                  # ZoneVolume, StairsVolume, InteractionDoor, WorldBuilder,
 │                  # NotePickup, NotePlacement, WorldNoteData
+├── Systems/       # BoatController (fake buoyancy, ~75s crossing), BoatDockManager
 ├── Survival/      # PlayerStats, WarmthVolume, Inventory, SaveManager
 ├── Lighthouse/    # LighthouseState, LighthouseInteractables
 ├── Audio/         # AudioManager, FootstepController, InteriorAudioZone
 ├── UI/            # DebugOverlay, DebugConsole, HUDController, NotePresenter
 Assets/Environment/
-├── Generated/     # 23 FBX (15 unique, ~1.0 MB) — auto-fixes on import
+├── Generated/     # 27 FBX (~1.4 MB) — auto-fixes on import
 ├── Textures/      # (Day 5) Poly Haven CC0 PBR sets + atlases
-Docs/AssetReviews/ # 33 review screenshots — 3 per asset group (front / ¾ / top)
+Docs/AssetReviews/ # 33 Day4 + 12 Day5( Day5/) review screenshots — 3 per asset group (front / ¾ / top)
 Assets/Scenes/
-└── Island.unity   # Bootstrap scene — playable; LighthouseArea auto-dresses on load
+└── Island.unity   # Bootstrap scene — playable; islet + main island + boat auto-assemble on load
 Packages/manifest.json  # URP / Input System / Cinemachine / Rigging / TMP
 ```
 
@@ -297,7 +308,7 @@ Budgets: props `500–3000` tris, hero props `≤ 8000`, lighthouse `≤ 25000`.
 
 See [`PROGRESS.md`](PROGRESS.md) for the full day-by-day report — completed work, decisions, art guide, per-asset reviews, manual steps & Day 5 plan.
 [`PERFORMANCE.md`](PERFORMANCE.md) tracks the static performance audit (tri counts, draw-call estimates, bottlenecks).
-[`Docs/AssetReviews/`](Docs/AssetReviews/) — 33 Blender review screenshots (3 per asset group).
+[`Docs/AssetReviews/`](Docs/AssetReviews/) — 33 Day4 + 12 Day5( `Day5/` ) review screenshots (3 per asset).
 
 | Day | Milestone | Status |
 |-----|-----------|--------|
@@ -305,7 +316,8 @@ See [`PROGRESS.md`](PROGRESS.md) for the full day-by-day report — completed wo
 | **Day 2** | Character, core loop, adaptive storm, inventory, gatherables, light failure & auto-save | ✅ Done |
 | **Day 3** | Island (~1 km², 5 zones), lighting, ocean, weather VFX, audio, interiors & 8 lore notes | ✅ Done |
 | **Day 4** | Blender→Unity pipeline + Lighthouse zone dressed (tower 16m + 14 props, ~6.3K tris, 33 reviews) | ✅ Done |
-| **Day 5** | Textures + atlases (Poly Haven CC0), LODs, lightmap/occlusion bake, next zone (Beach), device profile | ⏳ Next |
+| **Day 5 (CP1)** | Archipelago (islet + 260m shark channel + main island), brick kit, moss/wetness, nature kit, scatter, castle+bunker, ocean(channel), boat+docks, shark proxy | ✅ Done (Checkpoint 1) |
+| **Day 5 (CP2)** | Shark AI, AdaptiveStorm route learning, boat ferry gameplay, lore + hints, safety/mercy, device profile | ⏳ Next |
 
 ---
 
