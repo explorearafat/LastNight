@@ -31,9 +31,10 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           targetPlatform: Android
+          unityVersion: 6000.0.38f1
           buildName: LastLight
+          buildsPath: build
           androidVersionCode: 5
-          androidAppBundle: false
           androidExportType: androidPackage
           customParameters: -nographics
 
