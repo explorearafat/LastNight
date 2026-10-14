@@ -2,5 +2,14 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "headers": [
+    {
+      "source": "/releases/(.*)",
+      "headers": [
+        { "key": "Content-Disposition", "value": "attachment" },
+        { "key": "Content-Type", "value": "application/vnd.android.package-archive" }
+      ]
+    }
+  ]
 }

@@ -2,7 +2,6 @@ import React from "react";
 import {
   IconAndroid,
   IconBeacon,
-  IconBoatBody,
   IconBoatSmall,
   IconBox,
   IconBrick,
@@ -15,9 +14,6 @@ import {
   IconLighthouseSmall,
   IconOffline,
   IconPersonBoat,
-  IconPlay,
-  IconRuins,
-  IconRunner,
   IconSearch,
   IconSharkFin2,
   IconStory,
@@ -25,18 +21,60 @@ import {
   IconSurvival,
 } from "./icons/icons";
 
-const APK_URL = "";
+// Direct-download path: put LastLight.apk at website/public/releases/LastLight.apk
+// so Vite copies it to dist/releases/ and Vercel serves it with Content-Disposition: attachment.
+const DIRECT_APK = "/releases/LastLight.apk";
+const GITHUB_RELEASE_APK = "https://github.com/explorearafat/LastNight/releases/download/v0.5.0/LastLight.apk";
 const FALLBACK_URL = "https://github.com/explorearafat/LastNight/releases";
 const RELEASE_TAG = "v0.5.0";
+
+type ApkTarget = { href: string; download: boolean; label: string };
+
+function useApkTarget(): ApkTarget {
+  // Prefer the direct APK if we can HEAD it; otherwise fall back based on build-time flag.
+  // We use a cheap HEAD probe so the button degrades gracefully when APK is not yet published.
+  const [target, setTarget] = React.useState<ApkTarget>({
+    // While probing, show "Download APK" but still open the modal if APK not yet reachable
+    href: FALLBACK_URL,
+    download: false,
+    label: "View releases",
+  });
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function probe(url: string): Promise<boolean> {
+      try {
+        const res = await fetch(url, { method: "HEAD", cache: "no-store" });
+        // Some hosts (GitHub) don't allow HEAD cross-origin; treat any non-404 as "exists"
+        return res.ok || res.status === 200 || res.status === 204 || res.status === 304;
+      } catch {
+        return false;
+      }
+    }
+    (async () => {
+      if (await probe(DIRECT_APK)) {
+        if (!cancelled) setTarget({ href: DIRECT_APK, download: true, label: "v0.5 APK" });
+        return;
+      }
+      if (await probe(GITHUB_RELEASE_APK)) {
+        if (!cancelled) setTarget({ href: GITHUB_RELEASE_APK, download: true, label: "v0.5 APK" });
+        return;
+      }
+      if (!cancelled) setTarget({ href: FALLBACK_URL, download: false, label: "View releases" });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return target;
+}
 
 export default function App() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
   const [showComingSoon, setShowComingSoon] = React.useState(false);
-
-  const apkHref = APK_URL || FALLBACK_URL;
-  const apkLabel = APK_URL ? "v0.5 APK" : "View releases";
-  const apkDownload = Boolean(APK_URL);
+  const apkTarget = useApkTarget();
 
   function showToast(msg: string) {
     setToast(msg);
@@ -44,7 +82,7 @@ export default function App() {
   }
 
   async function onCopy() {
-    const url = APK_URL || FALLBACK_URL;
+    const url = apkTarget.href;
     try {
       await navigator.clipboard.writeText(url);
       showToast("Link copied");
@@ -53,11 +91,12 @@ export default function App() {
     }
   }
 
-  function handleDownloadClick(e: React.MouseEvent) {
-    if (!APK_URL) {
+  function handleDownloadClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    if (!apkTarget.download) {
       e.preventDefault();
       setShowComingSoon(true);
     }
+    // When apkTarget.download is true, let the browser handle the <a download> navigation
   }
 
   return (
@@ -125,10 +164,10 @@ export default function App() {
             <div className="hero-actions">
               <a
                 className="btn btn-primary"
-                href={apkHref}
-                download={apkDownload ? "" : undefined}
-                target={apkDownload ? undefined : "_blank"}
-                rel={apkDownload ? undefined : "noreferrer"}
+                href={apkTarget.href}
+                download={apkTarget.download ? "LastLight.apk" : undefined}
+                target={apkTarget.download ? undefined : "_blank"}
+                rel={apkTarget.download ? undefined : "noreferrer"}
                 onClick={handleDownloadClick}
               >
                 Download APK
@@ -323,14 +362,14 @@ export default function App() {
               </div>
               <a
                 className="btn btn-primary btn-full"
-                href={apkHref}
-                download={apkDownload ? "" : undefined}
-                target={apkDownload ? undefined : "_blank"}
-                rel={apkDownload ? undefined : "noreferrer"}
+                href={apkTarget.href}
+                download={apkTarget.download ? "LastLight.apk" : undefined}
+                target={apkTarget.download ? undefined : "_blank"}
+                rel={apkTarget.download ? undefined : "noreferrer"}
                 onClick={handleDownloadClick}
               >
                 <IconDownload style={{ width: 14, height: 14 }} />
-                Download APK
+                Download APK — {apkTarget.label}
               </a>
               <div style={{ marginTop: 10 }}>
                 <button
