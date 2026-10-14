@@ -27,10 +27,12 @@ import {
 
 const APK_URL = "";
 const FALLBACK_URL = "https://github.com/explorearafat/LastNight/releases";
+const RELEASE_TAG = "v0.5.0";
 
 export default function App() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [toast, setToast] = React.useState<string | null>(null);
+  const [showComingSoon, setShowComingSoon] = React.useState(false);
 
   const apkHref = APK_URL || FALLBACK_URL;
   const apkLabel = APK_URL ? "v0.5 APK" : "View releases";
@@ -48,6 +50,13 @@ export default function App() {
       showToast("Link copied");
     } catch {
       showToast(url);
+    }
+  }
+
+  function handleDownloadClick(e: React.MouseEvent) {
+    if (!APK_URL) {
+      e.preventDefault();
+      setShowComingSoon(true);
     }
   }
 
@@ -120,6 +129,7 @@ export default function App() {
                 download={apkDownload ? "" : undefined}
                 target={apkDownload ? undefined : "_blank"}
                 rel={apkDownload ? undefined : "noreferrer"}
+                onClick={handleDownloadClick}
               >
                 Download APK
               </a>
@@ -317,6 +327,7 @@ export default function App() {
                 download={apkDownload ? "" : undefined}
                 target={apkDownload ? undefined : "_blank"}
                 rel={apkDownload ? undefined : "noreferrer"}
+                onClick={handleDownloadClick}
               >
                 <IconDownload style={{ width: 14, height: 14 }} />
                 Download APK
@@ -409,6 +420,55 @@ export default function App() {
         </span>
         <span>© Copyright at lightxx.com</span>
       </footer>
+
+      {showComingSoon ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="APK coming soon"
+          onClick={() => setShowComingSoon(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(26,30,34,0.52)",
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+            zIndex: 80,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: 14,
+              padding: 22,
+              maxWidth: 420,
+              width: "100%",
+              boxShadow: "0 16px 40px rgba(0,0,0,0.12)",
+            }}
+          >
+            <h3 style={{ fontFamily: '"Fraunces", serif', fontSize: 18, margin: "0 0 8px" }}>APK coming soon</h3>
+            <p style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--muted)", margin: "0 0 14px" }}>
+              The Android build isn&apos;t published yet. The first APK will appear on{" "}
+              <a href={FALLBACK_URL} target="_blank" rel="noreferrer" style={{ textDecoration: "underline", textUnderlineOffset: 3 }}>
+                GitHub Releases ({RELEASE_TAG})
+              </a>{" "}
+              once the Unity license is configured for CI. You can also build locally:{" "}
+              <code>File → Build Settings → Android → Build</code> in Unity 6000.0.38f1.
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button className="btn btn-ghost" type="button" onClick={() => setShowComingSoon(false)}>
+                Close
+              </button>
+              <a className="btn btn-primary" href={FALLBACK_URL} target="_blank" rel="noreferrer">
+                Go to Releases
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {toast ? (
         <div className="toast show" role="status" aria-live="polite">
