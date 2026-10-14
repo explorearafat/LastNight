@@ -9,4 +9,8 @@
 [Rr]ecordings/
 website/node_modules/
 website/dist/
+.vercel/
+website/.vercel/
+.env.local
+website/.env.local
 # Never ignore Assets or Packages
